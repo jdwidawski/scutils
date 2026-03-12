@@ -26,6 +26,7 @@ from scutils.plotting.density_plotting import (
     aoi_density_outlines_multiplot,
 )
 from scutils.plotting.sankey import sankey_plot
+from scutils.plotting._utils import show_plotly
 
 __all__ = [
     # boxplots
@@ -51,4 +52,6 @@ __all__ = [
     "aoi_density_outlines_multiplot",
     # sankey
     "sankey_plot",
+    # display helpers
+    "show_plotly",
 ]

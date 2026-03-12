@@ -32,6 +32,45 @@ def _category_ordered_values(adata: AnnData, col: str) -> List[str]:
     return list(seen)
 
 
+def _apply_node_order(
+    adata: AnnData,
+    col: str,
+    values: List[str],
+    node_order: Optional[Union[str, Dict[str, List[str]]]],
+) -> List[str]:
+    """Return *values* reordered according to *node_order*.
+
+    - ``"auto"`` / ``None``: preserves categorical or insertion order.
+    - ``"data"``: first-appearance order in ``adata.obs[col]``.
+    - ``"count"``: descending total cell count (most populous node first).
+    - ``dict``: use ``node_order[col]`` when present; any values not listed
+      are appended in their original order.  Columns absent from the dict
+      fall back to ``"auto"``.
+    """
+    if node_order is None or node_order == "auto":
+        return values
+
+    if isinstance(node_order, dict):
+        if col in node_order:
+            custom = [str(v) for v in node_order[col]]
+            listed = set(custom)
+            extra = [v for v in values if v not in listed]
+            return custom + extra
+        return values
+
+    if node_order == "data":
+        seen: dict = {}
+        for v in adata.obs[col]:
+            seen[str(v)] = None
+        return list(seen)
+
+    if node_order == "count":
+        counts = adata.obs[col].astype(str).value_counts()
+        return sorted(values, key=lambda v: -counts.get(v, 0))
+
+    return values  # unreachable after validation, but satisfies type checker
+
+
 def _to_hex(color) -> str:
     """Convert any matplotlib-compatible colour spec to a CSS hex string."""
     try:
@@ -118,6 +157,7 @@ def sankey_plot(
     palette: Optional[
         Union[str, List[str], Dict[str, Union[str, List[str], Dict[str, str]]]]
     ] = None,
+    node_order: Optional[Union[str, Dict[str, List[str]]]] = "auto",
     height: int = 800,
     width: int = 1000,
     font_size: int = 12,
@@ -159,6 +199,24 @@ def sankey_plot(
               *categories* — each value is a per-column spec (string, list,
               or value→colour dict).
               Example: ``{"leiden": "tab10", "cell_type": {"T cell": "red"}}``.
+
+        node_order: Controls the vertical order of nodes within each column.
+            Accepts:
+
+            - ``"auto"`` *(default)* — preserves the category order of
+              Categorical columns, or insertion order for plain object columns.
+            - ``"data"`` — orders nodes by first appearance in
+              ``adata.obs``, useful when the original data ordering is
+              meaningful.
+            - ``"count"`` — sorts nodes by descending cell count so the
+              largest groups appear at the top.  This is a useful Sankey
+              heuristic: placing the heaviest ribbons near the top of each
+              column reduces visual crossing of links.
+            - A ``dict`` mapping column names to an explicit list of values
+              in the desired order.  Columns absent from the dict fall back
+              to ``"auto"``.  Any values not listed are appended at the
+              bottom in their default order.
+              Example: ``{"cell_type": ["T", "B", "NK", "Mono"]}``.
 
         height: Figure height in pixels. Defaults to ``800``.
         width: Figure width in pixels. Defaults to ``1000``.
@@ -220,11 +278,21 @@ def sankey_plot(
                 f"Available columns: {list(adata.obs.columns)}"
             )
 
+    _VALID_NODE_ORDERS = {"auto", "data", "count"}
+    if isinstance(node_order, str) and node_order not in _VALID_NODE_ORDERS:
+        raise ValueError(
+            f"node_order string must be one of {sorted(_VALID_NODE_ORDERS)}, "
+            f"got '{node_order}'."
+        )
+
     # ------------------------------------------------------------------
     # Ordered unique values per level
     # ------------------------------------------------------------------
     level_values: List[List[str]] = [
-        _category_ordered_values(adata, col) for col in categories
+        _apply_node_order(
+            adata, col, _category_ordered_values(adata, col), node_order
+        )
+        for col in categories
     ]
 
     # ------------------------------------------------------------------
