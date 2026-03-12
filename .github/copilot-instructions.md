@@ -170,17 +170,22 @@ The repository is structured as an installable package named `scutils`:
 single_cell_utilities/
     src/
         scutils/
-            __init__.py
+            __init__.py          # exposes pl, pp, tl shortcuts
             plotting/
                 __init__.py
-                _utils.py   # shared helpers (e.g. _resolve_palette)
-                ...
+                _utils.py        # shared helpers (e.g. _resolve_palette)
+                boxplots.py
+                density_plotting.py
+                dotplots.py
+                embeddings.py
+                heatmaps.py
+                volcano_plot.py
             preprocessing/
                 __init__.py
-                ...
+                concatenation.py
             tools/
                 __init__.py
-                ...
+                clustering.py
     tests/
         plotting/
         preprocessing/
@@ -190,11 +195,53 @@ single_cell_utilities/
         conf.py
         index.rst
         Makefile
+        _static/
+            custom.css
+        api/
+            plotting.rst
+            preprocessing.rst
+            tools.rst
+        user_guide/
+            getting_started.rst
+            plotting.rst
+            preprocessing.rst
+            tools.rst
     pyproject.toml
     README.md
 ```
 
 Always use absolute imports from the package root (e.g. `from scutils.plotting._utils import _resolve_palette`).
+
+### Subpackage shortcuts
+
+`scutils.__init__` exposes three module aliases that mirror the Scanpy
+convention (`sc.pl`, `sc.pp`, `sc.tl`):
+
+```python
+import scutils
+
+scutils.pl   # → scutils.plotting
+scutils.pp   # → scutils.preprocessing
+scutils.tl   # → scutils.tools
+```
+
+Usage examples:
+
+```python
+import scutils
+
+# Plotting
+fig = scutils.pl.volcano_plot(adata, ...)
+
+# Pre-processing
+scutils.pp.concat_anndata_with_zeros(adatas, ...)
+
+# Tools / clustering
+scutils.tl.iterative_subcluster(adata, ...)
+```
+
+When adding a new public function, export it from the relevant subpackage
+`__init__.py` so it is accessible via these shortcuts.
 
 ---
 
