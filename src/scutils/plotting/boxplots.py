@@ -869,6 +869,12 @@ def plot_feature_boxplot_multiplot(
     if hue is not None:
         hue_cats: List[str] = plot_df[hue].cat.categories.tolist()
         color_map = _resolve_palette(palette, hue_cats)
+        if color_map is None:
+            # Materialise a default palette keyed by ALL global hue categories
+            # so colours stay consistent across panels even when some panels
+            # are missing certain hue values.
+            _default_colors = sns.color_palette(n_colors=len(hue_cats))
+            color_map = {c: _default_colors[i] for i, c in enumerate(hue_cats)}
     else:
         # One colour per panel group; fall back to seaborn's categorical palette
         group_color_map = _resolve_palette(palette, groups_to_plot)
@@ -1719,6 +1725,12 @@ def plot_feature_boxplot_aggregated_multiplot(
     if hue is not None:
         hue_cats: List[str] = agg_df[hue].cat.categories.tolist()
         color_map = _resolve_palette(palette, hue_cats)
+        if color_map is None:
+            # Materialise a default palette keyed by ALL global hue categories
+            # so colours stay consistent across panels even when some panels
+            # are missing certain hue values.
+            _default_colors = sns.color_palette(n_colors=len(hue_cats))
+            color_map = {c: _default_colors[i] for i, c in enumerate(hue_cats)}
     else:
         group_color_map = _resolve_palette(palette, groups_to_plot)
         if group_color_map is None:
