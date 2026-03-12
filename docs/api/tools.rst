@@ -1,11 +1,6 @@
 scutils.tools
 =============
 
-.. automodule:: scutils.tools
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Clustering
 ----------
 

@@ -1,11 +1,6 @@
 scutils.preprocessing
 =====================
 
-.. automodule:: scutils.preprocessing
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Concatenation
 -------------
 

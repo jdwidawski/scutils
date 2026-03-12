@@ -1,11 +1,6 @@
 scutils.plotting
 ================
 
-.. automodule:: scutils.plotting
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Embedding plots
 ---------------
 
@@ -36,17 +31,14 @@ Density plots
 -------------
 
 .. autofunction:: scutils.plotting.plot_embedding_categories
-.. autofunction:: scutils.plotting.plot_density_embedding
-.. autofunction:: scutils.plotting.plot_density_embedding_multiplot
-.. autofunction:: scutils.plotting.plot_density_embedding_comparison
+.. autofunction:: scutils.plotting.plot_density_outlines
+.. autofunction:: scutils.plotting.plot_area_of_interest_density_outlines
+.. autofunction:: scutils.plotting.aoi_density_outlines_multiplot
 
 Volcano plot
 ------------
 
 .. autofunction:: scutils.plotting.volcano_plot
-
-Internal helpers
-----------------
 
 .. automodule:: scutils.plotting._utils
    :members:

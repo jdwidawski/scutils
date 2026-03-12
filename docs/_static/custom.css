@@ -1,0 +1,129 @@
+/* ============================================================
+   scutils — custom Sphinx RTD theme overrides
+   ============================================================ */
+
+:root {
+    --accent-color: #1565c0;
+    --accent-light: #1e88e5;
+    --accent-dark: #0d47a1;
+    --sidebar-bg: #1f2937;
+    --text-max-width: 900px;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────── */
+.wy-nav-side {
+    background: var(--sidebar-bg);
+}
+
+.wy-side-nav-search {
+    background: var(--accent-color);
+}
+
+.wy-side-nav-search > a,
+.wy-side-nav-search .wy-dropdown > a {
+    color: #ffffff;
+}
+
+.wy-side-nav-search input[type="text"] {
+    border-color: var(--accent-light);
+}
+
+/* ── Navigation links ─────────────────────────────────────── */
+.wy-menu-vertical a {
+    color: #cfd8dc;
+}
+
+.wy-menu-vertical a:hover {
+    background: var(--accent-dark);
+    color: #ffffff;
+}
+
+.wy-menu-vertical li.current > a,
+.wy-menu-vertical li.current > a:hover {
+    background: var(--accent-color);
+    color: #ffffff;
+}
+
+/* ── Main content area ────────────────────────────────────── */
+.wy-nav-content {
+    max-width: var(--text-max-width);
+}
+
+/* ── Headings ─────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+    color: #1a1a2e;
+}
+
+a {
+    color: var(--accent-color);
+}
+
+a:hover {
+    color: var(--accent-light);
+}
+
+/* ── Code blocks ──────────────────────────────────────────── */
+.highlight {
+    border-left: 4px solid var(--accent-light);
+    border-radius: 2px;
+}
+
+code,
+tt {
+    color: var(--accent-dark);
+    background: #e8f0fe;
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+/* ── Admonitions ──────────────────────────────────────────── */
+.rst-content .note .admonition-title {
+    background: var(--accent-color);
+}
+
+.rst-content .note {
+    background: #e8f0fe;
+    border-left: 4px solid var(--accent-color);
+}
+
+.rst-content .warning .admonition-title {
+    background: #e65100;
+}
+
+.rst-content .tip .admonition-title {
+    background: #2e7d32;
+}
+
+.rst-content .tip {
+    background: #e8f5e9;
+    border-left: 4px solid #2e7d32;
+}
+
+/* ── Tables ───────────────────────────────────────────────── */
+.rst-content table.docutils th {
+    background: var(--accent-color);
+    color: #ffffff;
+}
+
+.rst-content table.docutils tr:nth-child(even) {
+    background: #f0f4ff;
+}
+
+/* ── Version badge in sidebar ─────────────────────────────── */
+.wy-side-nav-search .version {
+    color: #bbdefb;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────── */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--accent-light);
+    border-radius: 3px;
+}

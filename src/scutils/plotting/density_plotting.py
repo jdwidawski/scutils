@@ -35,13 +35,11 @@ def plot_embedding_categories(
                       and values are lists of category values to plot from that column.
                       Example: {'leiden': ['0', '1', '2'], 'cell_type': ['T cell', 'B cell']}
         basis: Key in adata.obsm for the embedding to plot (default: 'umap').
-        palette: Color palette for categories. Can be:
-                - None: Uses adata.uns[f'{category}_colors'] if available for each column
-                - str: Matplotlib colormap name (applied to all categories)
-                - Dict[str, ...]: Dictionary mapping column names to color specifications:
-                  - str: colormap name for that column
-                  - List[str]: list of colors for categories in that column
-                  - Dict[str, str]: mapping category values to colors for that column
+        palette: Color palette for categories. Pass ``None`` to use
+            ``adata.uns['{category}_colors']`` when available, a Matplotlib
+            colormap name string to apply one map to all categories, or a
+            ``dict`` mapping column names to individual colour specifications
+            (colormap string, list of colours, or value-to-colour dict).
         figsize: Figure size as (width, height) tuple (default: (8, 6)).
         size: Size of scatter plot points (default: 10.0).
         title: Plot title. If None, uses 'Embedding Categories'.
@@ -319,13 +317,11 @@ def plot_density_outlines(
         density_cutoff: Threshold for defining high-density regions. Only cells with density
                        above this value will be included in the outline.
         basis: Key in adata.obsm for the embedding to plot (default: 'umap').
-        palette: Color palette for category outlines. Can be:
-                - None: Uses adata.uns[f'{category}_colors'] if available for each column
-                - str: Matplotlib colormap name (applied to all categories)
-                - Dict[str, ...]: Dictionary mapping column names to color specifications:
-                  - str: colormap name for that column
-                  - List[str]: list of colors for categories in that column
-                  - Dict[str, str]: mapping category values to colors for that column
+        palette: Color palette for category outlines. Pass ``None`` to use
+            ``adata.uns['{category}_colors']`` when available, a Matplotlib
+            colormap name string to apply one map to all categories, or a
+            ``dict`` mapping column names to individual colour specifications
+            (colormap string, list of colours, or value-to-colour dict).
         linewidth: Width of the outline contours (default: 2.0).
         figsize: Figure size as (width, height) tuple (default: (8, 6)).
         size: Size of scatter plot points (default: 1.0).
@@ -704,22 +700,19 @@ def plot_area_of_interest_density_outlines(
             Ignored when *aoi_category* is ``None``.
         density_colname: Base name for the density column in ``adata.obs``.
             Full column: ``{density_colname}_{category}``.
-        density_cutoff: Density threshold for the outline contours.  Can be:
-            - ``float``: a single threshold applied to every category value.
-            - ``Dict[str, float]``: a mapping from category *values*
-              (the strings listed in *category_dict*) to per-value
-              thresholds.  Values not present in the dict fall back to
-              ``1.0``.
+        density_cutoff: Density threshold for the outline contours. Either a
+            single ``float`` applied to every category value, or a
+            ``dict`` mapping category value strings to per-value thresholds
+            (values absent from the dict fall back to ``1.0``).
         basis: Embedding key in ``adata.obsm`` (default: ``'umap'``).
         palette: Color palette for the density-outline categories (same
             semantics as in ``plot_density_outlines``).
         aoi_color_by: Optional column in ``adata.obs`` used to color the
             AOI cells.  If *None* all AOI cells use *aoi_default_color*.
-        aoi_palette: Colors for the *aoi_color_by* column.  Accepted types:
-            - ``str``: matplotlib colormap name
-            - ``List[str]``: one color per unique value
-            - ``Dict[str, str]``: value → color mapping
-            If *None*, uses ``adata.uns`` colours or scanpy defaults.
+        aoi_palette: Colors for the *aoi_color_by* column: a Matplotlib
+            colormap name string, a list of colours (one per unique value),
+            or a value-to-colour dict. Pass ``None`` to use ``adata.uns``
+            colours or Scanpy defaults.
         show_aoi_outline: Draw a dashed outline around the whole AOI region
             (default ``False``).
         aoi_outline_color: Colour of the AOI outline (default ``'black'``).
@@ -739,12 +732,10 @@ def plot_area_of_interest_density_outlines(
         background_alpha: Alpha for background cells.
         background_color_by: Optional column in ``adata.obs`` used to colour
             background cells by category instead of a uniform colour.
-        background_palette: Colours for the *background_color_by* column.
-            Accepted types:
-            - ``str``: matplotlib colormap name
-            - ``List[str]``: one colour per unique value
-            - ``Dict[str, str]``: value → colour mapping
-            If ``None``, uses ``adata.uns`` colours or scanpy defaults.
+        background_palette: Colours for the *background_color_by* column:
+            a Matplotlib colormap name string, a list of colours (one per
+            unique value), or a value-to-colour dict. Pass ``None`` to use
+            ``adata.uns`` colours or Scanpy defaults.
         show_background_labels: Place text labels at the centroid of each
             background category cluster (default ``False``).
         background_label_fontsize: Font size for background category labels
@@ -765,27 +756,16 @@ def plot_area_of_interest_density_outlines(
             has an effect when *show_aoi_outline* is ``True``.
         aoi_annotation_fontsize: Font size for the AOI annotation text
             (default ``10.0``).
-        aoi_groups: Draw **multiple** AOI outlines at once.  A dictionary
-            mapping group labels (used in the legend) to AOI definitions,
-            where each definition is ``{column: [values]}``.
-            Example::
-
-                aoi_groups={
-                    'T cells':  {'cell_type': ['CD4 T', 'CD8 T']},
-                    'B cells':  {'cell_type': ['B cell']},
-                    'Myeloid':  {'cell_type': ['Monocyte', 'DC']},
-                }
-
-            When provided, *aoi_category* / *aoi_values* are ignored for
-            outline drawing (the single-AOI parameters still control the
-            scatter-point AOI layer).  Set to ``None`` to disable
-            (default).
-        aoi_groups_colors: Colors for the *aoi_groups* outlines.
-            - ``None`` — all outlines are black (default).
-            - ``str`` — a single colour applied to every group.
-            - ``List[str]`` — one colour per group (order matches
-              ``aoi_groups`` key order).
-            - ``Dict[str, str]`` — group label → colour mapping.
+        aoi_groups: Draw **multiple** AOI outlines at once. Pass a dict
+            mapping group labels (legend entries) to AOI definitions of the
+            form ``{column: [values]}``, e.g.
+            ``{'T cells': {'cell_type': ['CD4 T', 'CD8 T']}}``. When
+            provided, *aoi_category* / *aoi_values* are ignored for outline
+            drawing. Set to ``None`` to disable (default).
+        aoi_groups_colors: Colors for the *aoi_groups* outlines. Pass
+            ``None`` for black outlines, a single colour string, a list of
+            colours (one per group in key order), or a group-label-to-colour
+            dict.
         aoi_groups_linewidth: Line width for the group outlines
             (default ``1.5``).
         aoi_groups_linestyle: Line style for the group outlines
@@ -800,11 +780,9 @@ def plot_area_of_interest_density_outlines(
         legend_loc: ``None`` / ``'right margin'`` / ``'on data'``.
         show_labels: Show category labels on density contours.
         contour_squeeze: Contour threshold fraction for density outlines.
-            Can be:
-            - ``float``: a single fraction applied to every category value.
-            - ``Dict[str, float]``: a mapping from category *values* to
-              per-value fractions.  Values not in the dict fall back to
-              ``0.1``.
+            Either a single ``float`` applied to every category value or a
+            ``dict`` mapping category value strings to per-value fractions
+            (values absent from the dict fall back to ``0.1``).
 
     Returns:
         matplotlib.figure.Figure: The generated figure.
