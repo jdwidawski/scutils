@@ -27,17 +27,20 @@ missing genes with zeros.
 
    import scutils
 
-   adatas = {
-       "sample_A": adata_a,
-       "sample_B": adata_b,
-       "sample_C": adata_c,
-   }
-
+   # Concatenate two datasets; genes missing from one are filled with zeros
    combined = scutils.pp.concat_anndata_with_zeros(
-       adatas,
-       dataset_col="sample",   # new obs column recording source dataset
+       adata_a, adata_b,
+       left_name="sample_A",
+       right_name="sample_B",
    )
    print(combined.shape)       # (all_cells, union_of_genes)
+
+   # Chain additional datasets one at a time
+   combined = scutils.pp.concat_anndata_with_zeros(
+       combined, adata_c,
+       left_name=None,          # left is already a combined object
+       right_name="sample_C",
+   )
 
 Inspecting Zero-Filling Statistics
 ------------------------------------
@@ -48,12 +51,12 @@ missing from each dataset.
 .. code-block:: python
 
    # Which datasets are missing a specific gene?
-   missing = scutils.pp.get_datasets_missing_gene(adatas, gene="GAPDH")
+   missing = scutils.pp.get_datasets_missing_gene(combined, gene="GAPDH")
    print(missing)
 
-   # How many zeros were introduced per dataset?
-   stats = scutils.pp.get_zero_filling_stats(adatas)
-   scutils.pp.print_zero_filling_summary(stats)
+   # Summary table of zero-filled genes per dataset
+   stats = scutils.pp.get_zero_filling_stats(combined)
+   scutils.pp.print_zero_filling_summary(combined)
 
 Filtering Genes by Presence
 -----------------------------
@@ -63,8 +66,8 @@ reducing noise from panel-specific genes.
 
 .. code-block:: python
 
-   # Keep only genes present in at least 80 % of datasets
+   # Keep only genes present in at least 3 datasets
    filtered = scutils.pp.filter_genes_by_presence(
-       adatas,
-       min_presence=0.8,
+       combined,
+       min_datasets=3,
    )

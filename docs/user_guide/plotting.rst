@@ -32,16 +32,17 @@ categorical or continuous variables.
    # Single-category multiplot (one panel per category value)
    fig = scutils.pl.embedding_category_multiplot(
        adata,
-       color_cols=["leiden", "sample", "condition"],
+       column="leiden",   # one panel per leiden cluster value
        basis="umap",
-       figsize=(12, 4),
+       figsize=(4, 4),
    )
    fig.savefig("embeddings.png", dpi=150)
 
-   # Gene expression overlay
+   # Gene expression overlay split by a categorical column
    fig = scutils.pl.embedding_gene_expression_multiplot(
        adata,
-       genes=["GAPDH", "CD3E", "CD19"],
+       column="leiden",   # one panel per leiden cluster value
+       feature="GAPDH",   # colour by this gene
        basis="umap",
    )
 
@@ -52,26 +53,26 @@ Compare feature distributions across groups using violin/box plots.
 
 .. code-block:: python
 
-   # Single feature, multiple groups
+   # Single feature grouped by a categorical column
    fig = scutils.pl.plot_feature_boxplot(
        adata,
        feature="n_genes_by_counts",
-       groupby="leiden",
+       x="leiden",
    )
 
-   # Multi-feature panel layout
+   # One panel per x-category value (splits the x axis into panels)
    fig = scutils.pl.plot_feature_boxplot_multiplot(
        adata,
-       features=["n_genes_by_counts", "total_counts", "pct_counts_mt"],
-       groupby="sample",
+       feature="n_genes_by_counts",
+       x="sample",
    )
 
-   # Aggregated per-group summary (mean ± std)
+   # Pseudo-bulk: one data point per sample, grouped by condition
    fig = scutils.pl.plot_feature_boxplot_aggregated(
        adata,
        feature="CD3E",
-       groupby="condition",
-       aggregate_by="donor",
+       x="condition",
+       sample_col="donor",
    )
 
 Dotplots
@@ -82,13 +83,12 @@ cell types.
 
 .. code-block:: python
 
-   marker_genes = ["CD3E", "CD19", "MS4A1", "GNLY", "NKG7"]
-
+   # Each function shows one gene across two categorical axes
    fig = scutils.pl.dotplot_expression_two_categories(
        adata,
-       genes=marker_genes,
-       category_col="leiden",
-       split_col="condition",
+       feature="CD3E",
+       category_x="leiden",
+       category_y="condition",
    )
 
 Heatmaps
@@ -101,9 +101,9 @@ second variable.
 
    fig = scutils.pl.heatmap_expression_two_categories(
        adata,
-       genes=marker_genes,
-       category_col="leiden",
-       split_col="condition",
+       feature="CD3E",
+       category_x="leiden",
+       category_y="condition",
    )
 
 Density Plots
@@ -114,17 +114,19 @@ the spatial distribution of cell populations across conditions.
 
 .. code-block:: python
 
+   # Density outlines require pre-computed embedding density:
+   # sc.tl.embedding_density(adata, basis="umap", groupby="condition")
    fig = scutils.pl.plot_density_outlines(
        adata,
-       group_col="condition",
+       category_dict={"condition": ["control", "treated"]},
        basis="umap",
    )
 
-   # Multi-panel layout per area of interest
+   # Multi-panel layout — one panel per AOI column value
    fig = scutils.pl.aoi_density_outlines_multiplot(
        adata,
-       group_col="condition",
-       aoi_col="tissue_region",
+       category_dict={"condition": ["control", "treated"]},
+       column="tissue_region",
    )
 
 Volcano Plots
@@ -134,11 +136,12 @@ Visualise differential expression results.
 
 .. code-block:: python
 
+   # de_results: pd.DataFrame with gene names in a "names" column or index
    fig = scutils.pl.volcano_plot(
-       de_results,            # pd.DataFrame with logFC and p-value columns
-       log2fc_col="logfoldchanges",
+       de_results,
+       lfc_col="logfoldchanges",
        pval_col="pvals_adj",
-       gene_col="names",
-       title="Condition A vs B",
+       pval_cutoff=0.05,
+       lfc_cutoff=1.0,
    )
    fig.savefig("volcano.png", dpi=150)

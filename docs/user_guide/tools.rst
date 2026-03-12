@@ -34,9 +34,8 @@ that contain multiple cell types.
        adata,
        cluster_col="leiden",
        subcluster_resolutions={"3": 0.6, "7": 0.4},
-       key_added="leiden_sub",
    )
-   # adata.obs["leiden_sub"] now contains the merged labels
+   # result is stored in adata.obs["leiden_subclustered"]
 
 Renaming Subcluster Labels
 --------------------------
@@ -47,19 +46,20 @@ sub-labels with biologically meaningful names.
 
 .. code-block:: python
 
+   # label_map: new_label -> [old_labels]
    label_map = {
-       "3_0": "CD4 T cell",
-       "3_1": "Regulatory T cell",
-       "7_0": "NK cell",
-       "7_1": "NKT cell",
+       "CD4 T cell":        ["3_0"],
+       "Regulatory T cell": ["3_1"],
+       "NK cell":           ["7_0"],
+       "NKT cell":          ["7_1"],
    }
 
    scutils.tl.rename_subcluster_labels(
        adata,
-       cluster_col="leiden_sub",
+       col="leiden_subclustered",
        label_map=label_map,
-       key_added="cell_type",
    )
+   # result is written back to adata.obs["leiden_subclustered"] in place
 
 Spatial Cluster Splitting
 --------------------------
@@ -73,9 +73,10 @@ separate sub-populations based on their spatial coordinates.
    scutils.tl.spatial_split_clusters(
        adata,
        cluster_col="leiden",
-       spatial_key="spatial",
-       key_added="leiden_spatial",
+       categories=["3", "7"],   # clusters to evaluate for spatial separation
+       basis="X_umap",
    )
+   # result is stored in adata.obs["leiden_spatial_split"]
 
 Diagnostic Plots
 ----------------
@@ -89,6 +90,7 @@ splitting — useful for validating the split boundaries.
    fig = scutils.tl.plot_spatial_split_diagnostics(
        adata,
        cluster_col="leiden",
-       spatial_key="spatial",
+       categories=["3", "7"],   # clusters to inspect
+       basis="X_umap",
    )
    fig.savefig("spatial_split_qc.png", dpi=150)

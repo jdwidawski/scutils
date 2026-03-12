@@ -42,8 +42,8 @@ Install from source using `uv <https://github.com/astral-sh/uv>`_:
 
 .. code-block:: bash
 
-   git clone https://github.com/jakub_widawski/single_cell_utilities.git
-   cd single_cell_utilities
+   git clone https://github.com/jakub_widawski/scutils.git
+   cd scutils
    uv sync
 
 Or with pip:
@@ -62,10 +62,10 @@ Basic usage:
    adata = sc.read_h5ad("my_data.h5ad")
 
    # Plotting — accessible via scutils.pl
-   fig = scutils.pl.embedding_category_multiplot(adata, color_cols=["leiden", "sample"])
+   fig = scutils.pl.embedding_category_multiplot(adata, column="leiden", basis="umap")
 
    # Preprocessing — accessible via scutils.pp
-   combined = scutils.pp.concat_anndata_with_zeros([adata1, adata2], dataset_col="batch")
+   combined = scutils.pp.concat_anndata_with_zeros(adata1, adata2, left_name="donor_A", right_name="donor_B")
 
    # Tools — accessible via scutils.tl
    scutils.tl.iterative_subcluster(adata, cluster_col="leiden", subcluster_resolutions={"3": 0.4})
