@@ -21,9 +21,9 @@ from scutils.plotting.embeddings import (
 from scutils.plotting.volcano_plot import volcano_plot
 from scutils.plotting.density_plotting import (
     plot_embedding_categories,
-    plot_density_embedding,
-    plot_density_embedding_multiplot,
-    plot_density_embedding_comparison,
+    plot_density_outlines,
+    plot_area_of_interest_density_outlines,
+    aoi_density_outlines_multiplot,
 )
 
 __all__ = [
@@ -45,7 +45,7 @@ __all__ = [
     "volcano_plot",
     # density
     "plot_embedding_categories",
-    "plot_density_embedding",
-    "plot_density_embedding_multiplot",
-    "plot_density_embedding_comparison",
+    "plot_density_outlines",
+    "plot_area_of_interest_density_outlines",
+    "aoi_density_outlines_multiplot",
 ]
