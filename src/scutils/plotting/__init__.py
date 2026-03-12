@@ -25,6 +25,7 @@ from scutils.plotting.density_plotting import (
     plot_area_of_interest_density_outlines,
     aoi_density_outlines_multiplot,
 )
+from scutils.plotting.sankey import sankey_plot
 
 __all__ = [
     # boxplots
@@ -48,4 +49,6 @@ __all__ = [
     "plot_density_outlines",
     "plot_area_of_interest_density_outlines",
     "aoi_density_outlines_multiplot",
+    # sankey
+    "sankey_plot",
 ]
