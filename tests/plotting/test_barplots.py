@@ -304,7 +304,7 @@ class TestCellCountBarplotGroupedMode:
         plt.close(fig)
 
     def test_colors_from_category_not_group(self, adata_donors):
-        """Bars for the same category should share a colour across group_by values."""
+        """All bars within the same category block share a colour."""
         adata_donors.uns.pop("cell_type_colors", None)
         adata_donors.uns.pop("condition_colors", None)
         palette = {"B": "#ff0000", "Mono": "#00ff00", "NK": "#0000ff", "T": "#ffff00"}
@@ -313,13 +313,16 @@ class TestCellCountBarplotGroupedMode:
             mode="grouped", palette=palette,
         )
         ax = fig.axes[0]
-        # patches: 4 bars for condition[0], then 4 bars for condition[1]
-        # Each category position should have the same colour in both groups.
+        # Block layout: category i occupies patches[i*n_grp : (i+1)*n_grp].
+        # All patches in a block must share the same colour.
         n_cats = 4
-        for cat_i in range(n_cats):
-            r0, g0, b0, _ = ax.patches[cat_i].get_facecolor()
-            r1, g1, b1, _ = ax.patches[n_cats + cat_i].get_facecolor()
-            assert abs(r0 - r1) < 0.01 and abs(g0 - g1) < 0.01 and abs(b0 - b1) < 0.01
+        n_grp = 2
+        for i in range(n_cats):
+            block = ax.patches[i * n_grp : (i + 1) * n_grp]
+            r0, g0, b0, _ = block[0].get_facecolor()
+            for p in block[1:]:
+                r, g, b, _ = p.get_facecolor()
+                assert abs(r - r0) < 0.01 and abs(g - g0) < 0.01 and abs(b - b0) < 0.01
         plt.close(fig)
 
     def test_show_counts_with_labels_adds_extra_text(self, adata_donors):

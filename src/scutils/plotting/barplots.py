@@ -111,8 +111,10 @@ def cell_count_barplot(
             bar chart is produced.  Defaults to ``None``.
         mode: How to render the second grouping when *group_by* is set.
 
-            - ``"grouped"`` *(default)* — one cluster of side-by-side bars
-              per *category* value, one bar per *group_by* value.
+            - ``"grouped"`` *(default)* — one block of full-width bars per
+              *category* value (one bar per *group_by* value), separated from
+              adjacent category blocks by a small gap.  Each bar carries a
+              text label identifying its *group_by* value.
             - ``"stacked"`` — one stacked bar per *category* value, with
               segments coloured by *group_by* value.
 
@@ -264,12 +266,13 @@ def cell_count_barplot(
             data = data / row_totals
 
         if mode == "grouped":
-            # Bars are coloured by *category* value (not group_by) so they
-            # stay wide even with many group_by levels.  The group_by label
-            # is printed on or above each individual bar instead.
+            # Each category value gets a consecutive block of full-width bars
+            # (one per group_by value), with a one-bar-width gap between
+            # blocks.  No sub-cluster offset → bars stay as wide as possible.
             cat_colors = _bar_colors(adata, category, cat_values, palette)
             n_grp = len(grp_values)
-            bar_width = 0.8 / n_grp
+            bar_width = 0.8
+            gap = 1  # empty-bar-width spacing between category blocks
 
             _glkw: Dict[str, Any] = {"fontsize": 8, "ha": "center"}
             _glkw.update(group_label_kwargs or {})
@@ -278,16 +281,22 @@ def cell_count_barplot(
                 "center" if group_label_position == "inside" else "bottom",
             )
 
-            for i, grp_val in enumerate(grp_values):
-                offset = (i - n_grp / 2 + 0.5) * bar_width
-                heights = data[:, i]
+            tick_positions: List[float] = []
+            for i, (cat_val, cat_color) in enumerate(
+                zip(cat_values, cat_colors)
+            ):
+                block_start = i * (n_grp + gap)
+                positions = [block_start + j for j in range(n_grp)]
+                tick_positions.append(block_start + (n_grp - 1) / 2.0)
+
+                heights = data[i, :]
                 bars = ax.bar(
-                    x + offset, heights, width=bar_width,
-                    color=cat_colors,
+                    positions, heights, width=bar_width,
+                    color=cat_color,
                     edgecolor=bar_edgecolor, linewidth=bar_linewidth,
                     **kwargs,
                 )
-                for bar, h in zip(bars, heights):
+                for bar, h, grp_val in zip(bars, heights, grp_values):
                     if h <= 0:
                         continue
                     xc = bar.get_x() + bar.get_width() / 2
@@ -299,6 +308,10 @@ def cell_count_barplot(
                             _label(h, normalize),
                             ha="center", va="bottom", fontsize=8,
                         )
+
+            # Update x so the shared axes-formatting block below places
+            # ticks at the centre of each category's bar block.
+            x = np.array(tick_positions)
 
         else:  # stacked
             colors = _bar_colors(adata, group_by, grp_values, palette)
