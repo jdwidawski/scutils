@@ -1,5 +1,6 @@
 """Plotting utilities for single-cell data visualisation."""
 
+from scutils.plotting.barplots import cell_count_barplot
 from scutils.plotting.boxplots import (
     plot_feature_boxplot,
     plot_feature_boxplot_multiplot,
@@ -29,6 +30,8 @@ from scutils.plotting.sankey import sankey_plot
 from scutils.plotting._utils import show_plotly
 
 __all__ = [
+    # barplots
+    "cell_count_barplot",
     # boxplots
     "plot_feature_boxplot",
     "plot_feature_boxplot_multiplot",
