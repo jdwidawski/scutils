@@ -88,6 +88,10 @@ def cell_count_barplot(
     ylabel: Optional[str] = None,
     rotation: int = 45,
     show_counts: bool = False,
+    bar_linewidth: float = 0.8,
+    bar_edgecolor: str = "black",
+    group_label_position: Literal["inside", "above"] = "inside",
+    group_label_kwargs: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> Figure:
     """Bar plot showing cell counts per category or per pair of categories.
@@ -139,11 +143,30 @@ def cell_count_barplot(
         rotation: Rotation angle for x-axis tick labels in degrees.
             Defaults to ``45``.
         show_counts: When ``True``, annotate each bar (or segment for
-            ``mode="stacked"``) with its numeric value.  Defaults to
-            ``False``.
+            ``mode="stacked"``) with its numeric value.  In grouped mode
+            the count appears above the bar alongside the group label.
+            Defaults to ``False``.
+        bar_linewidth: Line width of the bar edges in points.  Defaults
+            to ``0.8``.
+        bar_edgecolor: Colour of the bar edges.  Defaults to ``"black"``.
+        group_label_position: Where to place the *group_by* text label on
+            each bar in ``mode="grouped"``.
+
+            - ``"inside"`` *(default)* — label is centred vertically
+              within the bar.  Works best when bars are tall enough;
+              consider ``group_label_kwargs={"rotation": 90}`` for narrow
+              bars.
+            - ``"above"`` — label sits just above the top of the bar.
+
+        group_label_kwargs: Keyword arguments forwarded to
+            :func:`matplotlib.axes.Axes.text` for the group labels in
+            ``mode="grouped"``.  Use this to control font size, colour,
+            weight, rotation, etc.
+            Example: ``{"fontsize": 7, "color": "white", "rotation": 90}``.
+            The ``"va"`` key overrides the default vertical alignment
+            inferred from *group_label_position*.  Defaults to ``None``.
         **kwargs: Additional keyword arguments forwarded to
-            :func:`matplotlib.axes.Axes.bar` (e.g. ``edgecolor``,
-            ``linewidth``).
+            :func:`matplotlib.axes.Axes.bar` (e.g. ``alpha``, ``zorder``).
 
     Returns:
         A :class:`matplotlib.figure.Figure`.  Call ``plt.show()`` to display
@@ -206,7 +229,11 @@ def cell_count_barplot(
             heights = heights / total if total > 0 else heights
 
         colors = _bar_colors(adata, category, cat_values, palette)
-        bars = ax.bar(x, heights, color=colors, **kwargs)
+        bars = ax.bar(
+            x, heights, color=colors,
+            edgecolor=bar_edgecolor, linewidth=bar_linewidth,
+            **kwargs,
+        )
 
         if show_counts:
             for bar, h in zip(bars, heights):
@@ -236,35 +263,53 @@ def cell_count_barplot(
             row_totals = np.where(row_totals == 0, 1, row_totals)
             data = data / row_totals
 
-        colors = _bar_colors(adata, group_by, grp_values, palette)
-
         if mode == "grouped":
+            # Bars are coloured by *category* value (not group_by) so they
+            # stay wide even with many group_by levels.  The group_by label
+            # is printed on or above each individual bar instead.
+            cat_colors = _bar_colors(adata, category, cat_values, palette)
             n_grp = len(grp_values)
             bar_width = 0.8 / n_grp
-            for i, (grp_val, color) in enumerate(zip(grp_values, colors)):
+
+            _glkw: Dict[str, Any] = {"fontsize": 8, "ha": "center"}
+            _glkw.update(group_label_kwargs or {})
+            _gl_va = _glkw.pop(
+                "va",
+                "center" if group_label_position == "inside" else "bottom",
+            )
+
+            for i, grp_val in enumerate(grp_values):
                 offset = (i - n_grp / 2 + 0.5) * bar_width
                 heights = data[:, i]
                 bars = ax.bar(
                     x + offset, heights, width=bar_width,
-                    color=color, label=grp_val, **kwargs,
+                    color=cat_colors,
+                    edgecolor=bar_edgecolor, linewidth=bar_linewidth,
+                    **kwargs,
                 )
-                if show_counts:
-                    for bar, h in zip(bars, heights):
-                        if h > 0:
-                            ax.text(
-                                bar.get_x() + bar.get_width() / 2,
-                                bar.get_height(),
-                                _label(h, normalize),
-                                ha="center", va="bottom", fontsize=8,
-                            )
+                for bar, h in zip(bars, heights):
+                    if h <= 0:
+                        continue
+                    xc = bar.get_x() + bar.get_width() / 2
+                    yc = h / 2 if group_label_position == "inside" else h
+                    ax.text(xc, yc, grp_val, va=_gl_va, **_glkw)
+                    if show_counts:
+                        ax.text(
+                            xc, h,
+                            _label(h, normalize),
+                            ha="center", va="bottom", fontsize=8,
+                        )
 
         else:  # stacked
+            colors = _bar_colors(adata, group_by, grp_values, palette)
             bottoms = np.zeros(len(cat_values))
             for i, (grp_val, color) in enumerate(zip(grp_values, colors)):
                 heights = data[:, i]
                 bars = ax.bar(
                     x, heights, bottom=bottoms,
-                    color=color, label=grp_val, **kwargs,
+                    color=color, label=grp_val,
+                    edgecolor=bar_edgecolor, linewidth=bar_linewidth,
+                    **kwargs,
                 )
                 if show_counts:
                     for bar, h, b in zip(bars, heights, bottoms):
@@ -277,13 +322,13 @@ def cell_count_barplot(
                             )
                 bottoms += heights
 
-        ax.legend(
-            title=group_by,
-            bbox_to_anchor=(1.01, 1),
-            loc="upper left",
-            borderaxespad=0,
-            frameon=False,
-        )
+            ax.legend(
+                title=group_by,
+                bbox_to_anchor=(1.01, 1),
+                loc="upper left",
+                borderaxespad=0,
+                frameon=False,
+            )
 
     # ------------------------------------------------------------------
     # Axes formatting

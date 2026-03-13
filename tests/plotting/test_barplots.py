@@ -244,16 +244,93 @@ class TestCellCountBarplotLayout:
         assert fig.axes[0].get_xlabel() == "Cell Types"
         plt.close(fig)
 
-    def test_legend_present_with_group_by(self, adata_donors):
+    def test_legend_present_for_stacked(self, adata_donors):
+        # Stacked mode uses colour to encode group_by — legend is needed.
         fig = cell_count_barplot(
-            adata_donors, category="cell_type", group_by="condition"
+            adata_donors, category="cell_type", group_by="condition",
+            mode="stacked",
         )
         assert fig.axes[0].get_legend() is not None
+        plt.close(fig)
+
+    def test_no_legend_for_grouped(self, adata_donors):
+        # Grouped mode encodes group_by as text labels — no legend needed.
+        fig = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="grouped",
+        )
+        assert fig.axes[0].get_legend() is None
         plt.close(fig)
 
     def test_no_legend_without_group_by(self, adata_basic):
         fig = cell_count_barplot(adata_basic, category="cell_type")
         assert fig.axes[0].get_legend() is None
+        plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Grouped mode — text labels and styling
+# ---------------------------------------------------------------------------
+
+
+class TestCellCountBarplotGroupedMode:
+    def test_text_labels_present(self, adata_donors):
+        """Every non-zero bar in grouped mode should have a group_by text label."""
+        fig = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="grouped",
+        )
+        ax = fig.axes[0]
+        # 4 cell types × 2 conditions, all non-zero in adata_donors → 8 labels
+        assert len(ax.texts) == 8
+        plt.close(fig)
+
+    def test_text_labels_above(self, adata_donors):
+        fig = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="grouped", group_label_position="above",
+        )
+        assert isinstance(fig, Figure)
+        plt.close(fig)
+
+    def test_group_label_kwargs_forwarded(self, adata_donors):
+        """Custom text kwargs should be applied without error."""
+        fig = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="grouped",
+            group_label_kwargs={"fontsize": 6, "color": "white", "rotation": 90},
+        )
+        assert isinstance(fig, Figure)
+        plt.close(fig)
+
+    def test_colors_from_category_not_group(self, adata_donors):
+        """Bars for the same category should share a colour across group_by values."""
+        adata_donors.uns.pop("cell_type_colors", None)
+        adata_donors.uns.pop("condition_colors", None)
+        palette = {"B": "#ff0000", "Mono": "#00ff00", "NK": "#0000ff", "T": "#ffff00"}
+        fig = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="grouped", palette=palette,
+        )
+        ax = fig.axes[0]
+        # patches: 4 bars for condition[0], then 4 bars for condition[1]
+        # Each category position should have the same colour in both groups.
+        n_cats = 4
+        for cat_i in range(n_cats):
+            r0, g0, b0, _ = ax.patches[cat_i].get_facecolor()
+            r1, g1, b1, _ = ax.patches[n_cats + cat_i].get_facecolor()
+            assert abs(r0 - r1) < 0.01 and abs(g0 - g1) < 0.01 and abs(b0 - b1) < 0.01
+        plt.close(fig)
+
+    def test_show_counts_with_labels_adds_extra_text(self, adata_donors):
+        """show_counts=True adds a count above each bar on top of the group label."""
+        fig = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="grouped", show_counts=True,
+        )
+        ax = fig.axes[0]
+        # 8 group labels + 8 count labels = 16 text elements
+        assert len(ax.texts) == 16
         plt.close(fig)
 
 
