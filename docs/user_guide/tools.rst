@@ -78,6 +78,65 @@ separate sub-populations based on their spatial coordinates.
    )
    # result is stored in adata.obs["leiden_spatial_split"]
 
+Gene Scoring
+------------
+
+Two methods are available for scoring a gene set against every cell,
+both working in place on ``adata.obs``.
+
+Hotspot module scores
+~~~~~~~~~~~~~~~~~~~~~
+
+:func:`~scutils.tools.compute_hotspot_scores` computes a Hotspot
+auto-correlation score for a set of genes based on their spatial
+auto-correlation in a neighbourhood graph built from a low-dimensional
+representation.
+
+.. note::
+   Requires the optional ``scoring`` extras:
+   ``pip install 'scutils[scoring]'``
+
+.. code-block:: python
+
+   import scutils
+
+   scutils.tl.compute_hotspot_scores(
+       adata,
+       genes=["SELL", "CCR7", "TCF7"],
+       score_name="naive_T_score",
+       use_rep="X_pca",
+   )
+   # Score is stored in adata.obs["naive_T_score"]
+
+ULM transcription-factor activity scores
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:func:`~scutils.tools.compute_ulm_scores` runs Univariate Linear Model
+(ULM) from the :mod:`decoupler` package on each source (e.g.
+transcription factor) in a prior knowledge network.  One activity column
+per source is added to ``adata.obs`` under the prefix ``score_name``.
+
+.. note::
+   Requires the optional ``decoupler`` extra:
+   ``pip install 'scutils[decoupler]'``
+
+.. code-block:: python
+
+   import pandas as pd
+   import scutils
+
+   # net must have source / target / weight columns
+   net = pd.read_csv("collectri.csv")
+
+   scutils.tl.compute_ulm_scores(
+       adata,
+       net=net,
+       score_name="tf_activity",
+       return_pvals=True,
+   )
+   # Each TF gets a column in adata.obs, e.g. adata.obs["tf_activity_STAT3"]
+   # P-value matrix: adata.obsm["tf_activity_pvals"]
+
 Diagnostic Plots
 ----------------
 

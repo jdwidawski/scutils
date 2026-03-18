@@ -26,6 +26,12 @@ Heatmaps
 
 .. autofunction:: scutils.plotting.heatmap_expression_two_categories
 .. autofunction:: scutils.plotting.heatmap_expression_two_categories_multiplot
+.. autofunction:: scutils.plotting.heatmap_feature_aggregated_three_categories
+
+Sankey plots
+------------
+
+.. autofunction:: scutils.plotting.sankey_plot
 
 Density plots
 -------------
@@ -39,7 +45,3 @@ Volcano plot
 ------------
 
 .. autofunction:: scutils.plotting.volcano_plot
-
-.. automodule:: scutils.plotting._utils
-   :members:
-   :undoc-members:
