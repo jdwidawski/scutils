@@ -6,10 +6,22 @@ from scutils.tools.clustering import (
     spatial_split_clusters,
     plot_spatial_split_diagnostics,
 )
+from scutils.tools.differential_expression import (
+    deseq2,
+    format_deseq2_results,
+)
+from scutils.tools.gene_scoring import compute_hotspot_scores, compute_ulm_scores
 
 __all__ = [
+    # clustering
     "iterative_subcluster",
     "rename_subcluster_labels",
     "spatial_split_clusters",
     "plot_spatial_split_diagnostics",
+    # differential expression
+    "deseq2",
+    "format_deseq2_results",
+    # gene scoring
+    "compute_hotspot_scores",
+    "compute_ulm_scores",
 ]
