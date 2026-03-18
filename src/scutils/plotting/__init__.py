@@ -14,6 +14,7 @@ from scutils.plotting.dotplots import (
 from scutils.plotting.heatmaps import (
     heatmap_expression_two_categories,
     heatmap_expression_two_categories_multiplot,
+    heatmap_feature_aggregated_three_categories,
 )
 from scutils.plotting.embeddings import (
     embedding_category_multiplot,
@@ -43,6 +44,7 @@ __all__ = [
     # heatmaps
     "heatmap_expression_two_categories",
     "heatmap_expression_two_categories_multiplot",
+    "heatmap_feature_aggregated_three_categories",
     # embeddings
     "embedding_category_multiplot",
     "embedding_gene_expression_multiplot",
