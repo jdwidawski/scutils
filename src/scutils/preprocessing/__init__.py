@@ -8,12 +8,16 @@ from scutils.preprocessing.concatenation import (
     print_zero_filling_summary,
     filter_genes_by_presence,
 )
+from scutils.preprocessing.pseudobulk import pseudobulk
 
 __all__ = [
+    # concatenation
     "concat_anndata_with_zeros",
     "get_zero_filled_genes_for_dataset",
     "get_datasets_missing_gene",
     "get_zero_filling_stats",
     "print_zero_filling_summary",
     "filter_genes_by_presence",
+    # pseudobulk
+    "pseudobulk",
 ]
