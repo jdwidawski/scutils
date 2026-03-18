@@ -78,4 +78,39 @@ def adata_umap(rng: np.random.Generator) -> AnnData:
     sc.pp.neighbors(adata)
     sc.tl.umap(adata)
     sc.tl.leiden(adata, key_added="leiden", resolution=0.5)
+
+
+@pytest.fixture
+def adata_pseudobulk_ready(rng: np.random.Generator) -> AnnData:
+    """600 cells designed for pseudobulk + DE testing.
+
+    6 donors × 2 conditions × 50 cells each = 600 cells × 30 genes.
+    Uses Poisson counts with a small fold-change injected into the first
+    5 genes for the 'treated' condition so that DE testing produces at
+    least some signal.
+    """
+    n_genes = 30
+    donors = ["D1", "D2", "D3", "D4", "D5", "D6"]
+    conditions = ["control", "treated"]
+    records = []
+    x_rows = []
+    for donor in donors:
+        for cond in conditions:
+            mean = 50 if cond == "control" else 50
+            for _ in range(50):
+                row = rng.poisson(mean, size=n_genes)
+                # Inject fold-change in genes 0-4 for treated
+                if cond == "treated":
+                    row[:5] = rng.poisson(120, size=5)
+                x_rows.append(row)
+                records.append({"donor": donor, "condition": cond})
+
+    X = csr_matrix(np.vstack(x_rows).astype(np.float32))
+    obs = pd.DataFrame(records)
+    obs["donor"] = pd.Categorical(obs["donor"])
+    obs["condition"] = pd.Categorical(obs["condition"])
+    obs.index = [f"cell_{i}" for i in range(len(obs))]
+    var = pd.DataFrame(index=[f"gene_{i}" for i in range(n_genes)])
+    adata = AnnData(X=X, obs=obs, var=var)
+    return adata
     return adata
