@@ -336,6 +336,36 @@ class TestCellCountBarplotGroupedMode:
         assert len(ax.texts) == 16
         plt.close(fig)
 
+    def test_category_separators_shown_by_default(self, adata_donors):
+        """3 separator lines for 4 category values (one between each pair)."""
+        fig = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="grouped",
+        )
+        ax = fig.axes[0]
+        assert len(ax.lines) == 3
+        plt.close(fig)
+
+    def test_category_separators_hidden(self, adata_donors):
+        """show_category_separators=False suppresses separator lines."""
+        fig = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="grouped", show_category_separators=False,
+        )
+        ax = fig.axes[0]
+        assert len(ax.lines) == 0
+        plt.close(fig)
+
+    def test_separators_not_added_for_stacked(self, adata_donors):
+        """Separator lines are only drawn in grouped mode."""
+        fig = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="stacked",
+        )
+        ax = fig.axes[0]
+        assert len(ax.lines) == 0
+        plt.close(fig)
+
 
 # ---------------------------------------------------------------------------
 # Palette options

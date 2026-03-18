@@ -83,8 +83,21 @@ def volcano_plot(
         ValueError: If *annot_sort_by* is not ``"pval"`` or ``"lfc"``.
 
     Example:
+        >>> # From Scanpy rank_genes_groups results
         >>> fig = volcano_plot(de_df, pval_cutoff=0.05, lfc_cutoff=0.5)
         >>> fig.savefig("volcano.png", dpi=150)
+
+        >>> # From pyDESeq2 results (via scutils.tl.deseq2)
+        >>> results = scutils.tl.deseq2(pb, design="~condition", ...)
+        >>> fig = volcano_plot(
+        ...     results,
+        ...     pval_col="padj",
+        ...     lfc_col="log2FoldChange",
+        ... )
+
+        >>> # Or convert to Scanpy convention first
+        >>> df = scutils.tl.format_deseq2_results(results)
+        >>> fig = volcano_plot(df)
     """
     valid_sort = {"pval", "lfc"}
     if annot_sort_by not in valid_sort:

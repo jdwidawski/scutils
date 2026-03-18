@@ -129,6 +129,7 @@ def _annotate_pvalues(
     comparisons: Optional[List[Tuple[str, str]]],
     orient: Literal["v", "h"],
     test: Literal["mann-whitney", "t-test"],
+    show_ns: bool = False,
 ) -> None:
     """Draw significance brackets between hue groups on *ax*.
 
@@ -148,6 +149,8 @@ def _annotate_pvalues(
         orient: ``"v"`` for vertical boxplots, ``"h"`` for horizontal.
         test: Statistical test to use. ``"mann-whitney"`` runs a two-sided
             Mann–Whitney U test; ``"t-test"`` runs Welch's t-test.
+        show_ns: When ``True``, also draw brackets labelled ``"ns"`` for
+            non-significant comparisons. Defaults to ``False``.
     """
     x_cats = data[x].cat.categories.tolist() if hasattr(data[x], "cat") else sorted(data[x].unique())
     hue_cats = data[hue].cat.categories.tolist() if hasattr(data[hue], "cat") else sorted(data[hue].unique())
@@ -194,7 +197,7 @@ def _annotate_pvalues(
                 _, p = stats.ttest_ind(g1, g2, equal_var=False)
 
             label = _pvalue_to_stars(p)
-            if label == "ns":
+            if label == "ns" and not show_ns:
                 continue
 
             x1 = _bar_centre(x_cat, h1)
@@ -234,6 +237,7 @@ def _annotate_pvalues_single_group(
     comparisons: Optional[List[Tuple[str, str]]],
     orient: Literal["v", "h"],
     test: Literal["mann-whitney", "t-test"],
+    show_ns: bool = False,
 ) -> None:
     """Draw significance brackets for a single-group panel where *hue* is the x-axis.
 
@@ -254,6 +258,8 @@ def _annotate_pvalues_single_group(
             pairwise combinations.
         orient: ``"v"`` for vertical boxplots, ``"h"`` for horizontal.
         test: Statistical test to use.
+        show_ns: When ``True``, also draw brackets labelled ``"ns"`` for
+            non-significant comparisons. Defaults to ``False``.
     """
     hue_cats = (
         data[hue].cat.categories.tolist()
@@ -278,7 +284,7 @@ def _annotate_pvalues_single_group(
         else:
             _, p = stats.ttest_ind(g1, g2, equal_var=False)
         label = _pvalue_to_stars(p)
-        if label != "ns":
+        if label != "ns" or show_ns:
             sig_pairs.append((h1, h2, label))
 
     if not sig_pairs:
@@ -362,6 +368,7 @@ def plot_feature_boxplot(
     comparisons: Optional[List[Tuple[str, str]]] = None,
     stat_test: Literal["mann-whitney", "t-test"] = "mann-whitney",
     show_stats: bool = False,
+    show_ns: bool = False,
     title: Optional[str] = None,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
@@ -427,6 +434,9 @@ def plot_feature_boxplot(
             (Welch's independent t-test). Defaults to ``"mann-whitney"``.
         show_stats: Whether to draw significance brackets. Requires *hue*.
             Defaults to ``False``.
+        show_ns: When ``True``, also annotate non-significant comparisons
+            with an ``"ns"`` bracket. Has no effect when *show_stats* is
+            ``False``. Defaults to ``False``.
         title: Axes title. Defaults to *feature*.
         xlabel: x-axis label. Defaults to *x*.
         ylabel: y-axis label. Defaults to *feature*.
@@ -591,6 +601,7 @@ def plot_feature_boxplot(
             comparisons=comparisons,
             orient=orient,
             test=stat_test,
+            show_ns=show_ns,
         )
 
     # ------------------------------------------------------------------
@@ -656,6 +667,7 @@ def plot_feature_boxplot_multiplot(
     comparisons: Optional[List[Tuple[str, str]]] = None,
     stat_test: Literal["mann-whitney", "t-test"] = "mann-whitney",
     show_stats: bool = False,
+    show_ns: bool = False,
     title: Optional[str] = None,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
@@ -748,6 +760,9 @@ def plot_feature_boxplot_multiplot(
             ``"mann-whitney"`` or ``"t-test"``. Defaults to ``"mann-whitney"``.
         show_stats: Whether to draw significance brackets. Requires *hue*.
             Defaults to ``False``.
+        show_ns: When ``True``, also annotate non-significant comparisons
+            with an ``"ns"`` bracket. Has no effect when *show_stats* is
+            ``False``. Defaults to ``False``.
         title: Overall figure super-title. Defaults to ``None``.
         xlabel: Override for the categorical axis label (x-axis for
             ``orient="v"``, y-axis for ``orient="h"``). When ``None``,
@@ -1082,6 +1097,7 @@ def plot_feature_boxplot_multiplot(
                 comparisons=comparisons,
                 orient=orient,
                 test=stat_test,
+                show_ns=show_ns,
             )
 
     return fig
@@ -1113,6 +1129,7 @@ def plot_feature_boxplot_aggregated(
     comparisons: Optional[List[Tuple[str, str]]] = None,
     stat_test: Literal["mann-whitney", "t-test"] = "mann-whitney",
     show_stats: bool = False,
+    show_ns: bool = False,
     title: Optional[str] = None,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
@@ -1191,6 +1208,9 @@ def plot_feature_boxplot_aggregated(
             ``"mann-whitney"`` or ``"t-test"``. Defaults to ``"mann-whitney"``.
         show_stats: Whether to draw significance brackets. Requires *hue*.
             Defaults to ``False``.
+        show_ns: When ``True``, also annotate non-significant comparisons
+            with an ``"ns"`` bracket. Has no effect when *show_stats* is
+            ``False``. Defaults to ``False``.
         title: Axes title. Defaults to ``"{feature} (per sample)"``.
         xlabel: x-axis label. Defaults to *x*.
         ylabel: y-axis label. Defaults to *feature*.
@@ -1401,6 +1421,7 @@ def plot_feature_boxplot_aggregated(
             comparisons=comparisons,
             orient=orient,
             test=stat_test,
+            show_ns=show_ns,
         )
 
     # ------------------------------------------------------------------
@@ -1461,7 +1482,7 @@ def plot_feature_boxplot_aggregated_multiplot(
     orient: Literal["v", "h"] = "v",
     vmin: Optional[float] = None,
     vmax: Optional[float] = None,
-    show_points: bool = True,
+    show_points: bool = False,
     point_size: float = 6.0,
     point_alpha: float = 0.8,
     border_ticks_only: bool = True,
@@ -1469,6 +1490,7 @@ def plot_feature_boxplot_aggregated_multiplot(
     comparisons: Optional[List[Tuple[str, str]]] = None,
     stat_test: Literal["mann-whitney", "t-test"] = "mann-whitney",
     show_stats: bool = False,
+    show_ns: bool = False,
     title: Optional[str] = None,
     xlabel: Optional[str] = None,
     ylabel: Optional[str] = None,
@@ -1548,7 +1570,7 @@ def plot_feature_boxplot_aggregated_multiplot(
         vmax: Upper limit for the value axis. Same semantics as *vmin*.
             Defaults to ``None``.
         show_points: Overlay each sample's aggregate value as an individual
-            point. Defaults to ``True``.
+            point. Defaults to ``False``.
         point_size: Marker size for sample points. Defaults to ``6.0``.
         point_alpha: Opacity of sample points. Defaults to ``0.8``.
         border_ticks_only: When ``True``, x-axis tick labels and the x-axis
@@ -1564,6 +1586,9 @@ def plot_feature_boxplot_aggregated_multiplot(
             ``"mann-whitney"`` or ``"t-test"``. Defaults to ``"mann-whitney"``.
         show_stats: Whether to draw significance brackets. Requires *hue*.
             Defaults to ``False``.
+        show_ns: When ``True``, also annotate non-significant comparisons
+            with an ``"ns"`` bracket. Has no effect when *show_stats* is
+            ``False``. Defaults to ``False``.
         title: Overall figure super-title. Defaults to ``None``.
         xlabel: Override for the categorical axis label. When ``None``,
             defaults to the *hue* column name (or *x* when *hue* is
@@ -1930,6 +1955,7 @@ def plot_feature_boxplot_aggregated_multiplot(
                 comparisons=comparisons,
                 orient=orient,
                 test=stat_test,
+                show_ns=show_ns,
             )
 
     return fig

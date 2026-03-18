@@ -92,6 +92,7 @@ def cell_count_barplot(
     bar_edgecolor: str = "black",
     group_label_position: Literal["inside", "above"] = "inside",
     group_label_kwargs: Optional[Dict[str, Any]] = None,
+    show_category_separators: bool = True,
     **kwargs: Any,
 ) -> Figure:
     """Bar plot showing cell counts per category or per pair of categories.
@@ -112,9 +113,11 @@ def cell_count_barplot(
         mode: How to render the second grouping when *group_by* is set.
 
             - ``"grouped"`` *(default)* — one block of full-width bars per
-              *category* value (one bar per *group_by* value), separated from
-              adjacent category blocks by a small gap.  Each bar carries a
-              text label identifying its *group_by* value.
+              *category* value (one bar per non-zero *group_by* combination),
+              packed with no gaps between category blocks.  Categories with
+              more *group_by* values occupy proportionally more x-axis space
+              so that every bar has the same width.  Each bar carries a text
+              label identifying its *group_by* value.
             - ``"stacked"`` — one stacked bar per *category* value, with
               segments coloured by *group_by* value.
 
@@ -132,8 +135,10 @@ def cell_count_barplot(
             - A Matplotlib / seaborn palette name string.
             - A ``dict`` mapping category labels to colours.
 
-            When *group_by* is set, colours are resolved from the *group_by*
-            column (since that is what distinguishes the bars visually).
+            In ``mode="grouped"``, colours are resolved from the *category*
+            column (bars within a block share a colour; *group_by* values
+            are identified by text labels).  In ``mode="stacked"``, colours
+            are resolved from the *group_by* column.
             Do **not** pass ``color`` via ``**kwargs``; use this parameter
             instead.
         figsize: Figure size as ``(width, height)`` in inches.
@@ -167,6 +172,11 @@ def cell_count_barplot(
             Example: ``{"fontsize": 7, "color": "white", "rotation": 90}``.
             The ``"va"`` key overrides the default vertical alignment
             inferred from *group_label_position*.  Defaults to ``None``.
+        show_category_separators: When ``True`` (default), a thin vertical
+            line is drawn between adjacent *category* blocks in
+            ``mode="grouped"`` to make it visually clear which bars belong
+            to the same *category* value.  Has no effect in other modes.
+            Defaults to ``True``.
         **kwargs: Additional keyword arguments forwarded to
             :func:`matplotlib.axes.Axes.bar` (e.g. ``alpha``, ``zorder``).
 
@@ -266,13 +276,15 @@ def cell_count_barplot(
             data = data / row_totals
 
         if mode == "grouped":
-            # Each category value gets a consecutive block of full-width bars
-            # (one per group_by value), with a one-bar-width gap between
-            # blocks.  No sub-cluster offset → bars stay as wide as possible.
+            # Bars are packed with NO gaps.  A running position counter
+            # advances by exactly the number of non-zero group_by values
+            # in each category, so zero-count combinations never waste
+            # x-axis space.  Categories with more present group_by values
+            # naturally occupy proportionally more of the axis while every
+            # bar stays the same width.
             cat_colors = _bar_colors(adata, category, cat_values, palette)
             n_grp = len(grp_values)
             bar_width = 0.8
-            gap = 1  # empty-bar-width spacing between category blocks
 
             _glkw: Dict[str, Any] = {"fontsize": 8, "ha": "center"}
             _glkw.update(group_label_kwargs or {})
@@ -282,26 +294,57 @@ def cell_count_barplot(
             )
 
             tick_positions: List[float] = []
+            separator_positions: List[float] = []
+            current_pos: int = 0
             for i, (cat_val, cat_color) in enumerate(
                 zip(cat_values, cat_colors)
             ):
-                block_start = i * (n_grp + gap)
-                positions = [block_start + j for j in range(n_grp)]
-                tick_positions.append(block_start + (n_grp - 1) / 2.0)
+                # Record boundary between the previous category block and
+                # this one (midpoint of the 0.2-unit gap between the bars).
+                if i > 0:
+                    separator_positions.append(current_pos - 0.5)
 
                 heights = data[i, :]
+                # Only allocate positions for non-zero bars; invisible
+                # zero-height bars would waste x-axis space.
+                mask = heights > 0
+                present_heights = heights[mask]
+                present_grps = [
+                    grp_values[j] for j, m in enumerate(mask) if m
+                ]
+                n_present = len(present_heights)
+
+                if n_present == 0:
+                    # No data for this category — reserve one placeholder
+                    # slot so the tick still appears.
+                    tick_positions.append(float(current_pos))
+                    current_pos += 1
+                    continue
+
+                positions = [current_pos + j for j in range(n_present)]
+                tick_positions.append(current_pos + (n_present - 1) / 2.0)
+                current_pos += n_present
+
                 bars = ax.bar(
-                    positions, heights, width=bar_width,
+                    positions, present_heights, width=bar_width,
                     color=cat_color,
                     edgecolor=bar_edgecolor, linewidth=bar_linewidth,
                     **kwargs,
                 )
-                for bar, h, grp_val in zip(bars, heights, grp_values):
-                    if h <= 0:
-                        continue
+                for bar, h, grp_val in zip(
+                    bars, present_heights, present_grps
+                ):
                     xc = bar.get_x() + bar.get_width() / 2
-                    yc = h / 2 if group_label_position == "inside" else h
-                    ax.text(xc, yc, grp_val, va=_gl_va, **_glkw)
+                    if group_label_position == "inside":
+                        ax.text(xc, h / 2, grp_val, va=_gl_va, **_glkw)
+                    else:
+                        # Use a fixed point offset so the gap between bar
+                        # top and label is independent of the data scale.
+                        ax.annotate(
+                            grp_val, xy=(xc, h),
+                            xytext=(0, 4), textcoords="offset points",
+                            va=_gl_va, **_glkw,
+                        )
                     if show_counts:
                         ax.text(
                             xc, h,
@@ -309,8 +352,14 @@ def cell_count_barplot(
                             ha="center", va="bottom", fontsize=8,
                         )
 
-            # Update x so the shared axes-formatting block below places
-            # ticks at the centre of each category's bar block.
+            if show_category_separators:
+                for sep_x in separator_positions:
+                    ax.axvline(
+                        sep_x, color="0.6", linewidth=1.0,
+                        linestyle="-", zorder=0,
+                    )
+
+            # x is used by the shared axes-formatting block below.
             x = np.array(tick_positions)
 
         else:  # stacked

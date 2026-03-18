@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Optional, Tuple, Union
+from typing import List, Literal, Optional, Tuple, Union
 
 import matplotlib
+import matplotlib.patches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -44,6 +45,26 @@ def _resolve_vmin_vmax(
             "Use a percentile string like 'p95' or a plain float."
         )
     return float(v)
+
+
+def _pvalue_to_stars(p: float) -> str:
+    """Convert a p-value to an asterisk significance string.
+
+    Args:
+        p: The p-value.
+
+    Returns:
+        ``"ns"`` for p ≥ 0.05, otherwise one to four asterisks.
+    """
+    if p >= 0.05:
+        return "ns"
+    if p >= 0.01:
+        return "*"
+    if p >= 0.001:
+        return "**"
+    if p >= 0.0001:
+        return "***"
+    return "****"
 
 
 # ---------------------------------------------------------------------------
@@ -582,6 +603,612 @@ def heatmap_expression_two_categories_multiplot(
         else:
             heatmap_ax.set_yticklabels(cats_y)
             heatmap_ax.set_ylabel(category_y)
+
+        heatmap_ax.grid(False)
+
+    return fig
+
+
+def heatmap_feature_aggregated_three_categories(
+    adata: AnnData,
+    feature: str,
+    x: str,
+    y: str,
+    panel: str,
+    sample_col: str,
+    x_ref: str,
+    groups_x: Optional[List[str]] = None,
+    groups_y: Optional[List[str]] = None,
+    groups_panel: Optional[List[str]] = None,
+    agg_fn: Literal["mean", "median", "sum"] = "mean",
+    min_cells: int = 10,
+    min_samples: Optional[int] = None,
+    layer: Optional[str] = None,
+    gene_symbols: Optional[str] = None,
+    ncols: int = 3,
+    shared_colorscale: bool = False,
+    zero_center: bool = True,
+    cmap: str = "Reds",
+    vmin: Optional[Union[str, float]] = None,
+    vmax: Optional[Union[str, float]] = None,
+    color_title: Optional[str] = None,
+    figsize: Optional[Tuple[float, float]] = None,
+    hspace: float = 0.2,
+    wspace: float = 1.2,
+    border_ticks_only: bool = True,
+    use_zscores: bool = False,
+    stat_test: Literal["mann-whitney", "t-test"] = "mann-whitney",
+    show_stats: bool = True,
+    show_ns: bool = False,
+    pvalue_fontsize: Union[str, float] = "x-small",
+) -> Figure:
+    """Heatmap of a single feature across three categorical variables with per-sample aggregation.
+
+    Creates a multi-panel figure where each panel corresponds to a unique value
+    of *panel*.  Within each panel, *x* categories appear on the columns and
+    *y* categories on the rows; cell colour encodes the mean of the per-sample
+    aggregated feature values.  Optionally, p-value stars are overlaid on each
+    non-reference cell by comparing each *x* level against a reference level
+    (*x_ref*) using the sample-level aggregated values within the same
+    ``(panel, y)`` group.
+
+    Each panel is processed independently following the same aggregation
+    pipeline as :func:`plot_feature_boxplot_aggregated`.  Within a panel,
+    cell-level values are grouped by ``(sample_col, x, y)`` — matching the
+    boxplot's ``groupby([sample_col, x, hue])`` — and aggregated with
+    *agg_fn*.  Samples contributing fewer than *min_cells* cells to a group
+    are silently dropped.  Statistical tests are then computed on the
+    resulting per-sample aggregates using the same ``.dropna()`` and
+    ``scipy.stats`` calls as the boxplot's ``_annotate_pvalues``, so
+    subsetting *adata* to a single *panel* value and calling
+    :func:`plot_feature_boxplot_aggregated` with ``x=x`` and ``hue=y``
+    produces identical p-value annotations.
+
+    Args:
+        adata: Annotated data matrix.
+        feature: Gene name or ``adata.obs`` column to visualise.  Resolved
+            with obs-first priority: if *feature* is present in
+            ``adata.obs.columns`` it is used directly (and *layer* /
+            *gene_symbols* are ignored).  Otherwise it is matched against
+            ``adata.var_names`` or ``adata.var[gene_symbols]``.
+        x: Column in ``adata.obs`` for the x-axis categories (e.g.
+            condition).
+        y: Column in ``adata.obs`` for the y-axis categories (e.g. cell
+            type).
+        panel: Column in ``adata.obs`` whose unique values each become a
+            separate heatmap panel (e.g. tissue).
+        sample_col: Column in ``adata.obs`` identifying biological samples.
+            Values are first aggregated per ``(sample_col, x, y, panel)``
+            group before further averaging for the colour scale.
+        x_ref: Reference level of *x* used as the baseline for p-value
+            computations.  Must be a value present in the *x* column after
+            any *groups_x* filtering.
+        groups_x: Ordered subset of *x* categories to include.  The list
+            order defines the display order on the x-axis.  *x_ref* is
+            always retained; if absent from the list it is prepended as the
+            first column.  When ``None``, all categories are kept in their
+            original order.  Defaults to ``None``.
+        groups_y: Ordered subset of *y* categories to include.  The list
+            order defines the display order on the y-axis.  When ``None``,
+            all categories are kept in their original order.
+            Defaults to ``None``.
+        groups_panel: Ordered subset of *panel* categories to include.  The
+            list order defines the panel sequence in the figure grid.  When
+            ``None``, all categories are kept in their original order.
+            Defaults to ``None``.
+        agg_fn: Aggregation function applied per
+            ``(sample_col, x, y, panel)`` group.  One of ``"mean"``,
+            ``"median"``, or ``"sum"``.  Defaults to ``"mean"``.
+        min_cells: Minimum number of cells a sample must contribute to a
+            group to be retained.  Groups with fewer cells are silently
+            dropped.  Defaults to ``10``.
+        min_samples: Minimum number of per-sample aggregates required for a
+            ``(x, y, panel)`` combination to be displayed in colour.
+            Combinations below this threshold are overlaid with a grey
+            rectangle and receive no annotation, regardless of
+            *show_stats*.  When ``None``, no masking is applied.
+            Defaults to ``None``.
+        layer: Expression layer to use for gene features.  ``None`` uses
+            ``adata.X``.  Defaults to ``None``.
+        gene_symbols: Column in ``adata.var`` holding alternative gene
+            identifiers.  When set, *feature* is matched against that column
+            instead of ``adata.var_names``.  Defaults to ``None``.
+        ncols: Number of panel columns in the figure grid.  Defaults to
+            ``3``.
+        shared_colorscale: When ``True``, a single colour scale is used
+            across all panels, enabling direct visual comparison.  Defaults
+            to ``False``.
+        zero_center: When ``True``, the colour scale is made symmetric
+            around zero.  If *vmax* is not provided, it is set to the
+            maximum absolute value of the data (per-panel when
+            *shared_colorscale* is ``False``, or global when ``True``);
+            *vmin* is then set to ``-vmax``.  If *vmax* is explicitly
+            provided, *vmin* is set to ``-vmax`` (any explicit *vmin* is
+            overridden).  Defaults to ``True``.
+        cmap: Matplotlib colormap name.  Defaults to ``"Reds"``.
+        vmin: Lower colour-scale limit.  Accepts a plain ``float`` or a
+            percentile string (e.g. ``"p5"``).  Defaults to ``None``.
+        vmax: Upper colour-scale limit.  Defaults to ``None``.
+        color_title: Colourbar label.  When ``None``, defaults to
+            ``"{feature} ({agg_fn} per sample)"``.  Defaults to ``None``.
+        figsize: Size of a **single** heatmap panel ``(width, height)`` in
+            inches.  When ``None``, the panel size is derived automatically
+            from the number of categories on each axis.  Defaults to
+            ``None``.
+        hspace: Vertical space between subplot rows, as a fraction of the
+            average axes height.  Defaults to ``0.2``.
+        wspace: Horizontal gap in inches between adjacent panel groups
+            (i.e. between the colourbar of one group and the heatmap of the
+            next).  Defaults to ``1.2``.
+        border_ticks_only: When ``True``, x-axis tick labels and the x-axis
+            label are shown only on the bottom row of subplots, and y-axis
+            tick labels and the y-axis label are shown only on the leftmost
+            column.  Defaults to ``True``.
+        use_zscores: When ``True``, z-score the per-group mean values before
+            plotting.  P-values are always computed on the un-z-scored
+            per-sample aggregated values.  Defaults to ``False``.
+        stat_test: Statistical test for comparisons against *x_ref*.  Either
+            ``"mann-whitney"`` (Mann–Whitney U, two-sided) or ``"t-test"``
+            (Welch's independent t-test).  Defaults to ``"mann-whitney"``.
+        show_stats: Whether to draw p-value annotations on the heatmap
+            cells.  Defaults to ``True``.
+        show_ns: When ``True`` and *show_stats* is ``True``, annotate
+            non-significant cells with ``"ns"``.  When ``False``, only
+            significant cells are annotated.  Defaults to ``False``.
+        pvalue_fontsize: Font size for p-value annotation text.  Accepts
+            any value recognised by matplotlib (e.g. ``"x-small"``,
+            ``8``).  Defaults to ``"x-small"``.
+
+    Returns:
+        The matplotlib ``Figure``.
+
+    Raises:
+        ValueError: If *x*, *y*, *panel*, or *sample_col* is not found in
+            ``adata.obs.columns``.
+        KeyError: If *feature* cannot be resolved against ``adata.obs``,
+            ``adata.var_names``, or ``adata.var[gene_symbols]``.
+        ValueError: If *x_ref* is not present in the *x* column after
+            filtering.
+        ValueError: If *agg_fn* is not one of ``"mean"``, ``"median"``,
+            ``"sum"``.
+        ValueError: If no samples remain after applying *min_cells*.
+        ValueError: If *vmin* or *vmax* is a string not starting with
+            ``"p"``.
+        ValueError: If any value in *groups_x* / *groups_y* / *groups_panel*
+            is not a valid category of the respective column.
+
+    Example:
+        >>> fig = heatmap_feature_aggregated_three_categories(
+        ...     adata,
+        ...     feature="CD3E",
+        ...     x="condition",
+        ...     y="cell_type",
+        ...     panel="tissue",
+        ...     sample_col="donor_id",
+        ...     x_ref="control",
+        ...     cmap="Blues",
+        ...     show_stats=True,
+        ...     show_ns=False,
+        ... )
+    """
+    # ------------------------------------------------------------------
+    # Validate inputs
+    # ------------------------------------------------------------------
+    for _arg_name, _col_val in [
+        ("x", x), ("y", y), ("panel", panel), ("sample_col", sample_col)
+    ]:
+        if _col_val not in adata.obs.columns:
+            raise ValueError(
+                f"{_arg_name}='{_col_val}' not found in adata.obs.columns. "
+                f"Available columns: {list(adata.obs.columns)}"
+            )
+    if agg_fn not in ("mean", "median", "sum"):
+        raise ValueError(
+            f"agg_fn='{agg_fn}' is not supported. "
+            "Choose from 'mean', 'median', 'sum'."
+        )
+
+    # ------------------------------------------------------------------
+    # Resolve feature: obs column takes priority over var (gene)
+    # ------------------------------------------------------------------
+    _is_obs_col = feature in adata.obs.columns
+    if not _is_obs_col:
+        if gene_symbols is not None:
+            if feature not in adata.var[gene_symbols].tolist():
+                raise KeyError(
+                    f"Feature '{feature}' not found in adata.obs.columns or "
+                    f"adata.var['{gene_symbols}']. "
+                    "Choose a valid obs column or gene."
+                )
+        else:
+            if feature not in adata.var_names.tolist():
+                raise KeyError(
+                    f"Feature '{feature}' not found in adata.obs.columns or "
+                    "adata.var_names. Choose a valid obs column or gene."
+                )
+    _layer = None if _is_obs_col else layer
+    _gene_symbols = None if _is_obs_col else gene_symbols
+
+    # ------------------------------------------------------------------
+    # Build per-cell long-form DataFrame
+    # ------------------------------------------------------------------
+    obs_tidy = sc.get.obs_df(
+        adata,
+        keys=[feature, x, y, panel, sample_col],
+        use_raw=False,
+        layer=_layer,
+        gene_symbols=_gene_symbols,
+    )
+
+    # Ensure categorical dtypes on grouping columns
+    for col in (x, y, panel):
+        if obs_tidy[col].dtype.name != "category":
+            obs_tidy[col] = obs_tidy[col].astype("category")
+        obs_tidy[col] = obs_tidy[col].cat.remove_unused_categories()
+
+    # ------------------------------------------------------------------
+    # Apply groups filtering
+    # ------------------------------------------------------------------
+    if groups_x is not None:
+        all_x_cats = obs_tidy[x].cat.categories.tolist()
+        invalid_x = [g for g in groups_x if g not in all_x_cats]
+        if invalid_x:
+            raise ValueError(
+                f"groups_x values {invalid_x} not found in x='{x}' "
+                f"categories. Available: {all_x_cats}"
+            )
+        # Always retain the reference level; respect the user-supplied order
+        if x_ref not in groups_x:
+            keep_x = [x_ref] + list(groups_x)
+        else:
+            keep_x = list(groups_x)
+        obs_tidy = obs_tidy[obs_tidy[x].isin(keep_x)].copy()
+        obs_tidy[x] = pd.Categorical(obs_tidy[x], categories=keep_x, ordered=False)
+
+    if groups_y is not None:
+        all_y_cats = obs_tidy[y].cat.categories.tolist()
+        invalid_y = [g for g in groups_y if g not in all_y_cats]
+        if invalid_y:
+            raise ValueError(
+                f"groups_y values {invalid_y} not found in y='{y}' "
+                f"categories. Available: {all_y_cats}"
+            )
+        obs_tidy = obs_tidy[obs_tidy[y].isin(groups_y)].copy()
+        obs_tidy[y] = pd.Categorical(obs_tidy[y], categories=list(groups_y), ordered=False)
+
+    if groups_panel is not None:
+        all_panel_cats = obs_tidy[panel].cat.categories.tolist()
+        invalid_panel = [g for g in groups_panel if g not in all_panel_cats]
+        if invalid_panel:
+            raise ValueError(
+                f"groups_panel values {invalid_panel} not found in "
+                f"panel='{panel}' categories. Available: {all_panel_cats}"
+            )
+        obs_tidy = obs_tidy[obs_tidy[panel].isin(groups_panel)].copy()
+        obs_tidy[panel] = pd.Categorical(obs_tidy[panel], categories=list(groups_panel), ordered=False)
+
+    # ------------------------------------------------------------------
+    # Validate x_ref and freeze category lists
+    # ------------------------------------------------------------------
+    cats_x: List = obs_tidy[x].cat.categories.tolist()
+    cats_y: List = obs_tidy[y].cat.categories.tolist()
+    cats_panel: List = obs_tidy[panel].cat.categories.tolist()
+
+    if x_ref not in cats_x:
+        raise ValueError(
+            f"x_ref='{x_ref}' is not a category in x='{x}' after "
+            f"filtering. Available categories: {cats_x}"
+        )
+
+    n_x = len(cats_x)
+    n_y = len(cats_y)
+    n_panels = len(cats_panel)
+
+    # ------------------------------------------------------------------
+    # Per-panel aggregation and statistical testing
+    #
+    # For each panel value, data is processed independently using the
+    # same pipeline as plot_feature_boxplot_aggregated:
+    #   1. Subset obs_tidy to the panel
+    #   2. Group by (sample_col, x, y) — matching the boxplot's
+    #      groupby([sample_col, x, hue], observed=True)
+    #   3. Apply min_cells filter on the per-group cell count
+    #   4. Compute statistical tests following the same approach as
+    #      _annotate_pvalues in boxplots.py (including .dropna())
+    #
+    # This ensures that subsetting adata to a single panel value and
+    # calling plot_feature_boxplot_aggregated with x=x, hue=y produces
+    # identical p-value annotations.
+    # ------------------------------------------------------------------
+
+    # Force float64 — matches boxplot's values.astype(float) step
+    obs_tidy[feature] = obs_tidy[feature].astype(float)
+
+    all_panel_agg: list = []
+    sample_count_lookup: dict = {}
+    pvalue_stars: dict = {}
+
+    for p_val in cats_panel:
+        panel_df = obs_tidy[obs_tidy[panel] == p_val]
+
+        # Aggregate per (sample_col, x, y) — same groupby as the
+        # boxplot's groupby([sample_col, x, hue], observed=True)
+        group_cols = [sample_col, x, y]
+        grouped = panel_df.groupby(group_cols, observed=True)
+        cell_counts = grouped[feature].count()
+        agg_values = getattr(grouped[feature], agg_fn)()
+
+        # Apply min_cells filter — same as boxplot
+        panel_agg_df = agg_values[cell_counts >= min_cells].reset_index()
+
+        if panel_agg_df.empty:
+            continue
+
+        # Tag with panel value and collect
+        panel_agg_df[panel] = p_val
+        all_panel_agg.append(panel_agg_df)
+
+        # Sample-count lookup for this panel
+        _sc = (
+            panel_agg_df.groupby([x, y], observed=True)[feature]
+            .count()
+            .reset_index()
+            .rename(columns={feature: "n_samples"})
+        )
+        for _, _row in _sc.iterrows():
+            sample_count_lookup[
+                (p_val, _row[y], _row[x])
+            ] = int(_row["n_samples"])
+
+        # --------------------------------------------------------------
+        # Statistical test — mirrors _annotate_pvalues from boxplots.py
+        #
+        # For each y category (= boxplot hue), compare each x_val
+        # against x_ref using the per-sample aggregated values, with
+        # .dropna() applied exactly as in _annotate_pvalues.
+        # --------------------------------------------------------------
+        if show_stats:
+            for y_val in cats_y:
+                subset = panel_agg_df[panel_agg_df[y] == y_val]
+                ref_vals = (
+                    subset[subset[x] == x_ref][feature].dropna().values
+                )
+                for x_val in cats_x:
+                    if x_val == x_ref:
+                        continue
+                    test_vals = (
+                        subset[subset[x] == x_val][feature]
+                        .dropna()
+                        .values
+                    )
+                    if len(ref_vals) < 2 or len(test_vals) < 2:
+                        if show_ns:
+                            pvalue_stars[(p_val, y_val, x_val)] = "ns"
+                        continue
+                    if stat_test == "mann-whitney":
+                        _, p = scipy.stats.mannwhitneyu(
+                            test_vals,
+                            ref_vals,
+                            alternative="two-sided",
+                        )
+                    else:
+                        _, p = scipy.stats.ttest_ind(
+                            test_vals,
+                            ref_vals,
+                            equal_var=False,
+                        )
+                    stars = _pvalue_to_stars(p)
+                    if stars != "ns" or show_ns:
+                        pvalue_stars[(p_val, y_val, x_val)] = stars
+
+    # Combine all panel aggregates
+    if not all_panel_agg:
+        raise ValueError(
+            f"No samples remain after applying min_cells={min_cells}. "
+            "Lower the threshold or check your grouping columns."
+        )
+    agg_df = pd.concat(all_panel_agg, ignore_index=True)
+
+    # Restore categorical ordering on agg_df
+    agg_df[x] = pd.Categorical(agg_df[x], categories=cats_x)
+    agg_df[y] = pd.Categorical(agg_df[y], categories=cats_y)
+    agg_df[panel] = pd.Categorical(agg_df[panel], categories=cats_panel)
+
+    # ------------------------------------------------------------------
+    # Compute mean per (x, y, panel) for colour matrix
+    # ------------------------------------------------------------------
+    mean_df = (
+        agg_df.groupby([x, y, panel], observed=True)[feature]
+        .mean()
+        .reset_index()
+        .rename(columns={feature: "mean"})
+    )
+
+    if use_zscores:
+        mean_df["mean"] = scipy.stats.zscore(mean_df["mean"].values)
+
+    # ------------------------------------------------------------------
+    # Resolve global vmin / vmax
+    # ------------------------------------------------------------------
+    if shared_colorscale:
+        _global_vmin = _resolve_vmin_vmax(mean_df["mean"], vmin)
+        _global_vmax = _resolve_vmin_vmax(mean_df["mean"], vmax)
+        if zero_center:
+            if _global_vmax is None:
+                _global_vmax = float(mean_df["mean"].abs().max())
+            _global_vmin = -_global_vmax
+
+    # ------------------------------------------------------------------
+    # Build index maps and per-panel colour matrices
+    # rows = cats_y index (top → bottom), cols = cats_x index (left → right)
+    # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Figure layout (mirrors heatmap_expression_two_categories_multiplot)
+    #
+    # Column structure repeated ncols times:
+    #   [heatmap_w, cbar_w, between_gap*]  (* omitted after last column)
+    #
+    # Heatmap column for panel i : 3*col
+    # Cbar    column for panel i : 3*col + 1
+    # Between-gap after group i  : 3*col + 2  (only when col < ncols - 1)
+    # ------------------------------------------------------------------
+    _ncols = min(ncols, n_panels)  # avoid empty gridspec columns
+    nrows = int(np.ceil(n_panels / _ncols))
+
+    _CELL: float = 0.6
+    _CBAR_W: float = 0.275
+    _BETWEEN_GAP: float = wspace
+
+    if figsize is not None:
+        main_w, main_h = float(figsize[0]), float(figsize[1])
+    else:
+        main_w = max(n_x * _CELL, 3.0)
+        main_h = max(n_y * _CELL, 3.0)
+
+    total_w = (
+        _ncols * (main_w + _CBAR_W)
+        + (_ncols - 1) * _BETWEEN_GAP
+        + 1.5
+    )
+    total_h = nrows * main_h + (nrows - 1) * 0.5 + 1.2
+
+    width_ratios: List = []
+    for i in range(_ncols):
+        width_ratios.append(main_w)
+        width_ratios.append(_CBAR_W)
+        if i < _ncols - 1:
+            width_ratios.append(_BETWEEN_GAP)
+
+    fig = plt.figure(figsize=(total_w, total_h))
+    gs = fig.add_gridspec(
+        nrows,
+        len(width_ratios),
+        width_ratios=width_ratios,
+        height_ratios=[main_h] * nrows,
+        left=0.1, right=0.95,
+        top=0.92, bottom=0.12,
+        wspace=0,
+        hspace=hspace,
+    )
+
+    _color_title = (
+        color_title
+        if color_title is not None
+        else f"{feature} ({agg_fn} per sample)"
+    )
+
+    # ------------------------------------------------------------------
+    # Draw each panel
+    # ------------------------------------------------------------------
+    for idx, p_val in enumerate(cats_panel):
+        row = idx // _ncols
+        col = idx % _ncols
+
+        heatmap_ax = fig.add_subplot(gs[row, 3 * col])
+        cbar_ax = fig.add_subplot(gs[row, 3 * col + 1])
+
+        # Per-panel: keep only x/y categories that have at least one value
+        p_df = mean_df[mean_df[panel] == p_val].dropna(subset=["mean"])
+        active_x_set = set(p_df[x].unique())
+        active_y_set = set(p_df[y].unique())
+        active_x = [c for c in cats_x if c in active_x_set]
+        active_y = [c for c in cats_y if c in active_y_set]
+        n_ax = len(active_x)
+        n_ay = len(active_y)
+        x_pos = {cat: i for i, cat in enumerate(active_x)}
+        y_pos = {cat: i for i, cat in enumerate(active_y)}
+
+        mat = np.full((n_ay, n_ax), np.nan)
+        for _, r in p_df.iterrows():
+            xi = x_pos.get(r[x])
+            yi = y_pos.get(r[y])
+            if xi is not None and yi is not None:
+                mat[yi, xi] = r["mean"]
+
+        if shared_colorscale:
+            _vmin, _vmax = _global_vmin, _global_vmax
+        else:
+            _vmin = _resolve_vmin_vmax(p_df["mean"], vmin)
+            _vmax = _resolve_vmin_vmax(p_df["mean"], vmax)
+            if zero_center:
+                if _vmax is None:
+                    _vmax = float(p_df["mean"].abs().max())
+                _vmin = -_vmax
+
+        norm = matplotlib.colors.Normalize(vmin=_vmin, vmax=_vmax)
+        im = heatmap_ax.imshow(
+            mat,
+            aspect="auto",
+            cmap=cmap,
+            norm=norm,
+            origin="upper",
+            interpolation="nearest",
+        )
+
+        cbar = fig.colorbar(im, cax=cbar_ax)
+        cbar.set_label(_color_title, fontsize="small")
+        cbar.ax.tick_params(labelsize="small")
+        cbar.ax.grid(False)
+
+        # ---- Grey masking for low-sample cells --------------------------
+        if min_samples is not None:
+            for x_val in active_x:
+                for y_val in active_y:
+                    if sample_count_lookup.get((p_val, y_val, x_val), 0) < min_samples:
+                        heatmap_ax.add_patch(
+                            matplotlib.patches.Rectangle(
+                                (x_pos[x_val] - 0.5, y_pos[y_val] - 0.5),
+                                1, 1,
+                                linewidth=0,
+                                facecolor="lightgray",
+                                zorder=2,
+                            )
+                        )
+
+        # ---- P-value annotations ----------------------------------------
+        if show_stats:
+            for x_val in active_x:
+                if x_val == x_ref:
+                    continue
+                col_pos = x_pos[x_val]
+                for y_val in active_y:
+                    row_pos = y_pos[y_val]
+                    # Skip annotation for grey-masked cells
+                    if min_samples is not None and (
+                        sample_count_lookup.get((p_val, y_val, x_val), 0) < min_samples
+                    ):
+                        continue
+                    stars = pvalue_stars.get((p_val, y_val, x_val))
+                    if stars is not None:
+                        heatmap_ax.text(
+                            col_pos,
+                            row_pos,
+                            stars,
+                            ha="center",
+                            va="center",
+                            fontsize=pvalue_fontsize,
+                            color="black",
+                        )
+
+        # ---- Axes formatting --------------------------------------------
+        heatmap_ax.set_title(str(p_val))
+        heatmap_ax.set_xticks(range(n_ax))
+        heatmap_ax.set_yticks(range(n_ay))
+
+        _is_bottom_row = row == nrows - 1
+        if border_ticks_only and not _is_bottom_row:
+            heatmap_ax.set_xticklabels([])
+            heatmap_ax.set_xlabel("")
+        else:
+            heatmap_ax.set_xticklabels(active_x, rotation=90)
+            heatmap_ax.set_xlabel(x)
+
+        if border_ticks_only and col > 0:
+            heatmap_ax.set_yticklabels([])
+            heatmap_ax.set_ylabel("")
+        else:
+            heatmap_ax.set_yticklabels(active_y)
+            heatmap_ax.set_ylabel(y)
 
         heatmap_ax.grid(False)
 
