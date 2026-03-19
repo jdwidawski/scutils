@@ -145,3 +145,44 @@ Visualise differential expression results.
        lfc_cutoff=1.0,
    )
    fig.savefig("volcano.png", dpi=150)
+
+Functional Enrichment Dot-plot
+------------------------------
+
+:func:`~scutils.plotting.create_pathway_dotplot` displays enriched
+pathway terms from :func:`~scutils.tools.get_enriched_terms`.  Each
+row is a pathway, the x-axis shows :math:`-\log_{10}(p)`, dot colour
+encodes the source database, and dot size optionally scales with
+significance.
+
+.. code-block:: python
+
+   import scutils
+
+   enrich_df = scutils.tl.get_enriched_terms(markers)
+
+   colors = {
+       "GO:BP": "#1f77b4",
+       "GO:MF": "#aec7e8",
+       "GO:CC": "#ffbb78",
+       "REAC":  "#ff7f0e",
+       "KEGG":  "#2ca02c",
+       "WP":    "#98df8a",
+   }
+
+   fig = scutils.pl.create_pathway_dotplot(
+       enrich_df,
+       source_colors=colors,
+       max_pathways=20,
+       variable_size=True,
+       title="Cluster 3 — enriched pathways",
+   )
+   fig.savefig("pathways.png", dpi=150)
+
+To load previously saved results from a CSV file, use
+:func:`~scutils.plotting.load_pathway_data`:
+
+.. code-block:: python
+
+   data = scutils.pl.load_pathway_data("enrichment_results.csv")
+   fig = scutils.pl.create_pathway_dotplot(data, source_colors=colors)

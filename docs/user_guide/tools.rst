@@ -153,3 +153,32 @@ splitting — useful for validating the split boundaries.
        basis="X_umap",
    )
    fig.savefig("spatial_split_qc.png", dpi=150)
+
+Functional Enrichment
+---------------------
+
+:func:`~scutils.tools.get_enriched_terms` wraps the g:Profiler API
+(via :func:`scanpy.queries.enrich`) to run gene-set enrichment analysis
+and returns a filtered, annotated results table ready for plotting.
+
+.. code-block:: python
+
+   import scutils
+
+   # Retrieve top marker genes for a cluster
+   markers = adata.uns["rank_genes_groups"]["names"]["3"].tolist()
+
+   enrich_df = scutils.tl.get_enriched_terms(
+       markers,
+       sources=["GO:BP", "REAC", "KEGG"],
+       pval_adjust_sign=0.05,
+       min_term_size=20,
+       max_term_size=500,
+   )
+   enrich_df.head()
+
+   # Save results to disk
+   scutils.tl.get_enriched_terms(
+       markers,
+       output_file="enrichment_results.csv",
+   )

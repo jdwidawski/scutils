@@ -28,7 +28,9 @@ from scutils.plotting.density_plotting import (
     aoi_density_outlines_multiplot,
 )
 from scutils.plotting.sankey import sankey_plot
+from scutils.plotting.upset import upset_plot
 from scutils.plotting._utils import show_plotly
+from scutils.plotting.functional import create_pathway_dotplot, load_pathway_data
 
 __all__ = [
     # barplots
@@ -57,6 +59,11 @@ __all__ = [
     "aoi_density_outlines_multiplot",
     # sankey
     "sankey_plot",
+    # upset
+    "upset_plot",
     # display helpers
     "show_plotly",
+    # functional / pathway enrichment
+    "create_pathway_dotplot",
+    "load_pathway_data",
 ]

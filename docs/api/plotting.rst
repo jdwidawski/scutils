@@ -45,3 +45,9 @@ Volcano plot
 ------------
 
 .. autofunction:: scutils.plotting.volcano_plot
+
+Functional Enrichment
+---------------------
+
+.. autofunction:: scutils.plotting.create_pathway_dotplot
+.. autofunction:: scutils.plotting.load_pathway_data

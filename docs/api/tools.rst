@@ -20,3 +20,8 @@ Gene Scoring
 
 .. autofunction:: scutils.tools.compute_hotspot_scores
 .. autofunction:: scutils.tools.compute_ulm_scores
+
+Functional Enrichment
+---------------------
+
+.. autofunction:: scutils.tools.get_enriched_terms
