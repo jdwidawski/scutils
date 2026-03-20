@@ -11,6 +11,7 @@ from scipy.sparse import csr_matrix
 from scutils.tools.gene_scoring import (
     _DECOUPLER_AVAILABLE,
     _HOTSPOT_AVAILABLE,
+    _PYUCELL_AVAILABLE,
     _resolve_genes,
     compute_aucell_scores,
     compute_hotspot_scores,
@@ -262,8 +263,8 @@ class TestComputeUlmScores:
 
 
 @pytest.mark.skipif(
-    not _DECOUPLER_AVAILABLE,
-    reason="decoupler not installed",
+    not _PYUCELL_AVAILABLE,
+    reason="pyUCell not installed",
 )
 class TestComputeAucellScores:
     GENES = GENE_NAMES[:8]
@@ -313,18 +314,18 @@ class TestComputeAucellScores:
         scores = scoring_adata.obs["aucell_score"]
         assert (scores >= 0).all() and (scores <= 1).all()
 
-    def test_adaptive_n_up_produces_nonzero(self, scoring_adata: AnnData) -> None:
-        """Adaptive n_up should yield at least some non-zero scores."""
+    def test_nonzero_scores(self, scoring_adata: AnnData) -> None:
+        """UCell should yield at least some non-zero scores."""
         compute_aucell_scores(scoring_adata, genes=self.GENES)
         scores = scoring_adata.obs["aucell_score"]
-        assert (scores > 0).any(), "adaptive n_up should produce non-zero scores"
+        assert (scores > 0).any(), "UCell should produce non-zero scores"
 
-    def test_no_residual_aucell_keys_in_obsm(
+    def test_no_residual_keys_in_obsm(
         self, scoring_adata: AnnData
     ) -> None:
         compute_aucell_scores(scoring_adata, genes=self.GENES)
-        for key in ("aucell_estimate", "score_aucell"):
-            assert key not in scoring_adata.obsm
+        # pyUCell writes only to adata.obs; nothing should land in obsm
+        assert all("UCell" not in k for k in scoring_adata.obsm)
 
     def test_with_layer(self, scoring_adata: AnnData) -> None:
         scoring_adata.layers["counts"] = scoring_adata.X.copy()
@@ -351,6 +352,6 @@ class TestComputeAucellScores:
     ) -> None:
         import scutils.tools.gene_scoring as gs
 
-        monkeypatch.setattr(gs, "_DECOUPLER_AVAILABLE", False)
-        with pytest.raises(ImportError, match="decoupler"):
+        monkeypatch.setattr(gs, "_PYUCELL_AVAILABLE", False)
+        with pytest.raises(ImportError, match="pyUCell"):
             compute_aucell_scores(scoring_adata, genes=self.GENES)

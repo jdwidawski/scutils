@@ -27,6 +27,13 @@ try:
 except ImportError:
     _DECOUPLER_AVAILABLE = False
 
+try:
+    import pyucell
+
+    _PYUCELL_AVAILABLE = True
+except ImportError:
+    _PYUCELL_AVAILABLE = False
+
 
 # ---------------------------------------------------------------------------
 # Private helpers
@@ -326,11 +333,11 @@ def _run_ulm_network(
     del adata.obsm[est_key]
 
     if return_pvals:
-        pval_key = _get_obsm_key(adata, "ulm_pvals", "pval_ulm")
+        pval_key = _get_obsm_key(adata, "ulm_pvals", "pval_ulm", "padj_ulm")
         adata.obs[f"{score_name}_pval"] = adata.obsm[pval_key][source_name].values
         del adata.obsm[pval_key]
     else:
-        for pval_key in ("ulm_pvals", "pval_ulm"):
+        for pval_key in ("ulm_pvals", "pval_ulm", "padj_ulm"):
             if pval_key in adata.obsm:
                 del adata.obsm[pval_key]
 
@@ -442,25 +449,25 @@ def compute_aucell_scores(
     layer: Optional[str] = None,
     gene_symbols: Optional[str] = None,
     min_n: int = 5,
-    n_up: Optional[int] = None,
+    max_rank: int = 1500,
     copy: bool = False,
 ) -> Optional[AnnData]:
-    """Compute an AUCell enrichment score for a gene list using decoupler.
+    """Compute a UCell enrichment score for a gene list using pyUCell.
 
-    Builds a one-source network from ``genes``, runs the AUCell algorithm,
-    and stores the resulting enrichment score as a single column in
-    ``adata.obs``.  AUCell is rank-based and requires no gene weights,
-    making it the natural choice for plain gene lists.
+    Uses the UCell algorithm (Mann-Whitney U statistic on per-cell gene
+    rankings) to score each cell for a given set of genes.  Unlike
+    AUCell, UCell caps ranks at ``max_rank`` for sparsity, making it
+    robust for large datasets and small gene sets alike.
 
     Args:
-        adata: Annotated data matrix.  Expression values should be
-            normalised (e.g. library-size normalised + log1p); raw integer
-            counts are not recommended.
+        adata: Annotated data matrix.  Works with both raw counts and
+            normalised expression; the algorithm is rank-based.
         genes: Gene identifiers that define the gene set.  Interpreted as
             ``adata.var_names`` entries unless ``gene_symbols`` is set.
-        set_name: Label assigned to the gene set; used as the source name
-            in the internal network.  Defaults to ``"gene_set"``.
-        score_name: Key added to ``adata.obs`` for the AUCell score.
+        set_name: Label assigned to the gene set; used as a key in the
+            ``signatures`` dict passed to pyUCell.  Defaults to
+            ``"gene_set"``.
+        score_name: Key added to ``adata.obs`` for the UCell score.
             Defaults to ``"aucell_score"``.
         layer: Layer to use for gene expression.  Defaults to ``None``
             (uses ``adata.X``).
@@ -470,12 +477,8 @@ def compute_aucell_scores(
         min_n: Minimum number of genes from the list that must be present
             in ``adata.var_names`` for scoring to proceed.  Defaults to
             ``5``.
-        n_up: Number of top-ranked features used to compute the AUC.
-            When ``None`` (default), an adaptive value is calculated as
-            ``max(5% × n_vars, n_vars ÷ k)`` where ``k`` is the number of
-            found genes.  This ensures ~63 %% of cells are expected to
-            receive a non-zero score regardless of gene-set size.  Pass an
-            explicit integer to override.
+        max_rank: Genes ranked below this threshold contribute zero to the
+            score (improves sparsity).  Defaults to ``1500``.
         copy: If ``True``, operate on a copy of ``adata`` and return it.
             If ``False`` (default), modify ``adata`` in place and return
             ``None``.
@@ -485,7 +488,7 @@ def compute_aucell_scores(
         ``None``.
 
     Raises:
-        ImportError: If ``decoupler`` is not installed.
+        ImportError: If ``pyUCell`` is not installed.
         ValueError: If fewer than ``min_n`` input genes are found in
             ``adata.var_names``.
 
@@ -497,10 +500,10 @@ def compute_aucell_scores(
         ... )
         >>> adata.obs["naive_T_aucell"]
     """
-    if not _DECOUPLER_AVAILABLE:
+    if not _PYUCELL_AVAILABLE:
         raise ImportError(
-            "decoupler is required for compute_aucell_scores. "
-            "Install it with: pip install 'scutils[decoupler]'"
+            "pyUCell is required for compute_aucell_scores. "
+            "Install it with: pip install pyUCell"
         )
 
     adata = adata.copy() if copy else adata
@@ -509,37 +512,16 @@ def compute_aucell_scores(
     found = _warn_missing_genes(
         resolved, adata.var_names, min_n, func_name="compute_aucell_scores"
     )
-    net = pd.DataFrame({"source": set_name, "target": found})
 
-    # Adaptive n_up: use the larger of 5 % of all features and
-    # n_vars / k (ensures ~63 % of cells are expected to score non-zero
-    # even for small gene sets on large datasets).
-    if n_up is None:
-        n_up = max(
-            int(np.ceil(0.05 * adata.n_vars)),
-            adata.n_vars // len(found),
-        )
-
-    run_kwargs: dict = dict(verbose=False, n_up=n_up)
+    run_kwargs: dict = dict(max_rank=max_rank, missing_genes="skip")
     if layer is not None:
         run_kwargs["layer"] = layer
 
-    if hasattr(dc, "mt") and hasattr(dc.mt, "aucell"):
-        # New decoupler API (>= 2.x)
-        dc.mt.aucell(adata, net, tmin=min_n, **run_kwargs)
-    else:
-        # Legacy decoupler API
-        dc.run_aucell(
-            adata,
-            net=net,
-            source="source",
-            target="target",
-            min_n=min_n,
-            **run_kwargs,
-        )
+    pyucell.compute_ucell_scores(adata, {set_name: found}, **run_kwargs)
 
-    est_key = _get_obsm_key(adata, "aucell_estimate", "score_aucell")
-    adata.obs[score_name] = adata.obsm[est_key][set_name].values
-    del adata.obsm[est_key]
+    ucell_col = f"{set_name}_UCell"
+    adata.obs[score_name] = adata.obs[ucell_col].values
+    if ucell_col != score_name:
+        del adata.obs[ucell_col]
 
     return adata if copy else None
