@@ -11,6 +11,8 @@ from scipy.sparse import csr_matrix
 from scutils.tools.gene_scoring import (
     _DECOUPLER_AVAILABLE,
     _HOTSPOT_AVAILABLE,
+    _resolve_genes,
+    compute_aucell_scores,
     compute_hotspot_scores,
     compute_ulm_scores,
 )
@@ -36,16 +38,43 @@ def scoring_adata() -> AnnData:
     return adata
 
 
-@pytest.fixture
-def minimal_net() -> pd.DataFrame:
-    """Minimal prior-knowledge network: 2 TFs × 6 target genes each."""
-    return pd.DataFrame(
-        {
-            "source": ["TF1"] * 6 + ["TF2"] * 6,
-            "target": GENE_NAMES[:6] + GENE_NAMES[6:12],
-            "weight": [1.0] * 12,
-        }
-    )
+# ---------------------------------------------------------------------------
+# _resolve_genes
+# ---------------------------------------------------------------------------
+
+
+class TestResolveGenes:
+    def test_no_gene_symbols_returns_genes_as_is(
+        self, scoring_adata: AnnData
+    ) -> None:
+        genes = ["gene_0", "gene_1", "gene_2"]
+        result = _resolve_genes(scoring_adata, genes, gene_symbols=None)
+        assert result == genes
+
+    def test_gene_symbols_maps_to_var_names(
+        self, scoring_adata: AnnData
+    ) -> None:
+        scoring_adata.var["symbol"] = [f"GENE_{i}" for i in range(N_GENES)]
+        symbol_genes = ["GENE_0", "GENE_1", "GENE_2"]
+        result = _resolve_genes(
+            scoring_adata, symbol_genes, gene_symbols="symbol"
+        )
+        assert result == ["gene_0", "gene_1", "gene_2"]
+
+    def test_gene_symbols_unknown_gene_excluded(
+        self, scoring_adata: AnnData
+    ) -> None:
+        scoring_adata.var["symbol"] = [f"GENE_{i}" for i in range(N_GENES)]
+        symbol_genes = ["GENE_0", "NONEXISTENT"]
+        result = _resolve_genes(
+            scoring_adata, symbol_genes, gene_symbols="symbol"
+        )
+        assert result == ["gene_0"]
+        assert "NONEXISTENT" not in result
+
+    def test_empty_genes_returns_empty(self, scoring_adata: AnnData) -> None:
+        result = _resolve_genes(scoring_adata, [], gene_symbols=None)
+        assert result == []
 
 
 # ---------------------------------------------------------------------------
@@ -136,87 +165,192 @@ class TestComputeHotspotScores:
     reason="decoupler not installed",
 )
 class TestComputeUlmScores:
-    def test_inplace_returns_none(
-        self, scoring_adata: AnnData, minimal_net: pd.DataFrame
-    ) -> None:
-        result = compute_ulm_scores(scoring_adata, net=minimal_net)
+    GENES = GENE_NAMES[:8]
+
+    def test_inplace_returns_none(self, scoring_adata: AnnData) -> None:
+        result = compute_ulm_scores(scoring_adata, genes=self.GENES)
         assert result is None
 
-    def test_inplace_adds_obs_columns(
-        self, scoring_adata: AnnData, minimal_net: pd.DataFrame
-    ) -> None:
-        compute_ulm_scores(scoring_adata, net=minimal_net, score_name="tf")
-        assert "tf_TF1" in scoring_adata.obs.columns
-        assert "tf_TF2" in scoring_adata.obs.columns
+    def test_inplace_adds_obs_column(self, scoring_adata: AnnData) -> None:
+        compute_ulm_scores(scoring_adata, genes=self.GENES, score_name="tf")
+        assert "tf" in scoring_adata.obs.columns
 
-    def test_copy_returns_adata(
-        self, scoring_adata: AnnData, minimal_net: pd.DataFrame
-    ) -> None:
+    def test_copy_returns_adata(self, scoring_adata: AnnData) -> None:
         result = compute_ulm_scores(
-            scoring_adata, net=minimal_net, score_name="tf", copy=True
+            scoring_adata, genes=self.GENES, score_name="tf", copy=True
         )
         assert isinstance(result, AnnData)
-        assert "tf_TF1" not in scoring_adata.obs.columns
-        assert "tf_TF1" in result.obs.columns
+        assert "tf" not in scoring_adata.obs.columns
+        assert "tf" in result.obs.columns
 
-    def test_scores_are_finite(
-        self, scoring_adata: AnnData, minimal_net: pd.DataFrame
-    ) -> None:
-        compute_ulm_scores(scoring_adata, net=minimal_net, score_name="tf")
-        assert np.isfinite(scoring_adata.obs["tf_TF1"]).all()
-        assert np.isfinite(scoring_adata.obs["tf_TF2"]).all()
+    def test_scores_are_finite(self, scoring_adata: AnnData) -> None:
+        compute_ulm_scores(scoring_adata, genes=self.GENES, score_name="tf")
+        assert np.isfinite(scoring_adata.obs["tf"]).all()
 
-    def test_score_length_matches_n_obs(
-        self, scoring_adata: AnnData, minimal_net: pd.DataFrame
-    ) -> None:
-        compute_ulm_scores(scoring_adata, net=minimal_net, score_name="tf")
-        assert len(scoring_adata.obs["tf_TF1"]) == scoring_adata.n_obs
+    def test_score_length_matches_n_obs(self, scoring_adata: AnnData) -> None:
+        compute_ulm_scores(scoring_adata, genes=self.GENES, score_name="tf")
+        assert len(scoring_adata.obs["tf"]) == scoring_adata.n_obs
 
-    def test_return_pvals_false_no_obsm_key(
-        self, scoring_adata: AnnData, minimal_net: pd.DataFrame
+    def test_return_pvals_false_no_pval_column(
+        self, scoring_adata: AnnData
     ) -> None:
         compute_ulm_scores(
-            scoring_adata, net=minimal_net, score_name="tf", return_pvals=False
+            scoring_adata, genes=self.GENES, score_name="tf", return_pvals=False
         )
-        assert "tf_pvals" not in scoring_adata.obsm
+        assert "tf_pval" not in scoring_adata.obs.columns
 
-    def test_return_pvals_true_adds_obsm_key(
-        self, scoring_adata: AnnData, minimal_net: pd.DataFrame
+    def test_return_pvals_true_adds_obs_column(
+        self, scoring_adata: AnnData
     ) -> None:
         compute_ulm_scores(
-            scoring_adata, net=minimal_net, score_name="tf", return_pvals=True
+            scoring_adata, genes=self.GENES, score_name="tf", return_pvals=True
         )
-        assert "tf_pvals" in scoring_adata.obsm
-        assert isinstance(scoring_adata.obsm["tf_pvals"], pd.DataFrame)
+        assert "tf_pval" in scoring_adata.obs.columns
+        assert np.isfinite(scoring_adata.obs["tf_pval"]).all()
 
-    def test_custom_score_name_prefix(
-        self, scoring_adata: AnnData, minimal_net: pd.DataFrame
-    ) -> None:
-        compute_ulm_scores(scoring_adata, net=minimal_net, score_name="activity")
-        assert "activity_TF1" in scoring_adata.obs.columns
-        assert "activity_TF2" in scoring_adata.obs.columns
+    def test_custom_score_name(self, scoring_adata: AnnData) -> None:
+        compute_ulm_scores(
+            scoring_adata, genes=self.GENES, score_name="activity"
+        )
+        assert "activity" in scoring_adata.obs.columns
 
-    def test_with_layer(
-        self, scoring_adata: AnnData, minimal_net: pd.DataFrame
-    ) -> None:
+    def test_custom_set_name(self, scoring_adata: AnnData) -> None:
+        compute_ulm_scores(
+            scoring_adata,
+            genes=self.GENES,
+            set_name="my_program",
+            score_name="prog",
+        )
+        assert "prog" in scoring_adata.obs.columns
+
+    def test_with_layer(self, scoring_adata: AnnData) -> None:
         scoring_adata.layers["counts"] = scoring_adata.X.copy()
         compute_ulm_scores(
-            scoring_adata, net=minimal_net, score_name="tf", layer="counts"
+            scoring_adata, genes=self.GENES, score_name="tf", layer="counts"
         )
-        assert "tf_TF1" in scoring_adata.obs.columns
+        assert "tf" in scoring_adata.obs.columns
 
-    def test_no_residual_ulm_keys_in_obsm(
-        self, scoring_adata: AnnData, minimal_net: pd.DataFrame
-    ) -> None:
-        compute_ulm_scores(scoring_adata, net=minimal_net, score_name="tf")
-        assert "ulm_estimate" not in scoring_adata.obsm
-        assert "ulm_pvals" not in scoring_adata.obsm
+    def test_no_residual_ulm_keys_in_obsm(self, scoring_adata: AnnData) -> None:
+        compute_ulm_scores(scoring_adata, genes=self.GENES, score_name="tf")
+        for key in ("ulm_estimate", "ulm_pvals", "score_ulm", "pval_ulm"):
+            assert key not in scoring_adata.obsm
+
+    def test_gene_symbols(self, scoring_adata: AnnData) -> None:
+        scoring_adata.var["symbol"] = [f"GENE_{i}" for i in range(N_GENES)]
+        symbol_genes = [f"GENE_{i}" for i in range(8)]
+        compute_ulm_scores(
+            scoring_adata,
+            genes=symbol_genes,
+            gene_symbols="symbol",
+            score_name="ulm_sym",
+        )
+        assert "ulm_sym" in scoring_adata.obs.columns
 
     def test_missing_dep_raises(
-        self, scoring_adata: AnnData, minimal_net: pd.DataFrame, monkeypatch: pytest.MonkeyPatch
+        self, scoring_adata: AnnData, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         import scutils.tools.gene_scoring as gs
 
         monkeypatch.setattr(gs, "_DECOUPLER_AVAILABLE", False)
         with pytest.raises(ImportError, match="decoupler"):
-            compute_ulm_scores(scoring_adata, net=minimal_net)
+            compute_ulm_scores(scoring_adata, genes=self.GENES)
+
+
+# ---------------------------------------------------------------------------
+# compute_aucell_scores
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(
+    not _DECOUPLER_AVAILABLE,
+    reason="decoupler not installed",
+)
+class TestComputeAucellScores:
+    GENES = GENE_NAMES[:8]
+
+    def test_inplace_returns_none(self, scoring_adata: AnnData) -> None:
+        result = compute_aucell_scores(scoring_adata, genes=self.GENES)
+        assert result is None
+
+    def test_inplace_adds_obs_column(self, scoring_adata: AnnData) -> None:
+        compute_aucell_scores(scoring_adata, genes=self.GENES)
+        assert "aucell_score" in scoring_adata.obs.columns
+
+    def test_copy_returns_adata(self, scoring_adata: AnnData) -> None:
+        result = compute_aucell_scores(
+            scoring_adata, genes=self.GENES, copy=True
+        )
+        assert isinstance(result, AnnData)
+        assert "aucell_score" not in scoring_adata.obs.columns
+        assert "aucell_score" in result.obs.columns
+
+    def test_custom_score_name(self, scoring_adata: AnnData) -> None:
+        compute_aucell_scores(
+            scoring_adata, genes=self.GENES, score_name="my_score"
+        )
+        assert "my_score" in scoring_adata.obs.columns
+
+    def test_custom_set_name(self, scoring_adata: AnnData) -> None:
+        compute_aucell_scores(
+            scoring_adata,
+            genes=self.GENES,
+            set_name="my_program",
+            score_name="prog",
+        )
+        assert "prog" in scoring_adata.obs.columns
+
+    def test_scores_are_finite_floats(self, scoring_adata: AnnData) -> None:
+        compute_aucell_scores(scoring_adata, genes=self.GENES)
+        scores = scoring_adata.obs["aucell_score"]
+        assert np.isfinite(scores).all()
+
+    def test_score_length_matches_n_obs(self, scoring_adata: AnnData) -> None:
+        compute_aucell_scores(scoring_adata, genes=self.GENES)
+        assert len(scoring_adata.obs["aucell_score"]) == scoring_adata.n_obs
+
+    def test_scores_in_zero_one_range(self, scoring_adata: AnnData) -> None:
+        compute_aucell_scores(scoring_adata, genes=self.GENES)
+        scores = scoring_adata.obs["aucell_score"]
+        assert (scores >= 0).all() and (scores <= 1).all()
+
+    def test_adaptive_n_up_produces_nonzero(self, scoring_adata: AnnData) -> None:
+        """Adaptive n_up should yield at least some non-zero scores."""
+        compute_aucell_scores(scoring_adata, genes=self.GENES)
+        scores = scoring_adata.obs["aucell_score"]
+        assert (scores > 0).any(), "adaptive n_up should produce non-zero scores"
+
+    def test_no_residual_aucell_keys_in_obsm(
+        self, scoring_adata: AnnData
+    ) -> None:
+        compute_aucell_scores(scoring_adata, genes=self.GENES)
+        for key in ("aucell_estimate", "score_aucell"):
+            assert key not in scoring_adata.obsm
+
+    def test_with_layer(self, scoring_adata: AnnData) -> None:
+        scoring_adata.layers["counts"] = scoring_adata.X.copy()
+        compute_aucell_scores(
+            scoring_adata, genes=self.GENES, layer="counts"
+        )
+        assert "aucell_score" in scoring_adata.obs.columns
+
+    def test_gene_symbols(self, scoring_adata: AnnData) -> None:
+        scoring_adata.var["symbol"] = [f"GENE_{i}" for i in range(N_GENES)]
+        symbol_genes = [f"GENE_{i}" for i in range(8)]
+        compute_aucell_scores(
+            scoring_adata,
+            genes=symbol_genes,
+            gene_symbols="symbol",
+            score_name="aucell_sym",
+        )
+        assert "aucell_sym" in scoring_adata.obs.columns
+
+    def test_missing_dep_raises(
+        self,
+        scoring_adata: AnnData,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import scutils.tools.gene_scoring as gs
+
+        monkeypatch.setattr(gs, "_DECOUPLER_AVAILABLE", False)
+        with pytest.raises(ImportError, match="decoupler"):
+            compute_aucell_scores(scoring_adata, genes=self.GENES)

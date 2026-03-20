@@ -30,6 +30,7 @@ dependencies = [
     "plotly>=5.0",
     "nbformat>=5.10.4",
     "kaleido>=1.2.0",
+    "upsetplot>=0.9",
 ]
 
 [project.optional-dependencies]
