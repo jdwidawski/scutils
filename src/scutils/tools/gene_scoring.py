@@ -450,6 +450,9 @@ def compute_aucell_scores(
     gene_symbols: Optional[str] = None,
     min_n: int = 5,
     max_rank: int = 1500,
+    smooth: bool = False,
+    n_neighbors: int = 10,
+    use_rep: str = "X_pca",
     copy: bool = False,
 ) -> Optional[AnnData]:
     """Compute a UCell enrichment score for a gene list using pyUCell.
@@ -479,6 +482,15 @@ def compute_aucell_scores(
             ``5``.
         max_rank: Genes ranked below this threshold contribute zero to the
             score (improves sparsity).  Defaults to ``1500``.
+        smooth: If ``True``, smooth the UCell scores by weight-averaging
+            over k nearest neighbours using
+            ``pyucell.smooth_knn_scores``.  Requires ``adata.obsm[use_rep]``
+            to exist.  Defaults to ``False``.
+        n_neighbors: Number of nearest neighbours used for smoothing.
+            Ignored when ``smooth=False``.  Defaults to ``10``.
+        use_rep: Key in ``adata.obsm`` used to compute the neighbour
+            graph for smoothing.  Ignored when ``smooth=False``.
+            Defaults to ``"X_pca"``.
         copy: If ``True``, operate on a copy of ``adata`` and return it.
             If ``False`` (default), modify ``adata`` in place and return
             ``None``.
@@ -523,5 +535,16 @@ def compute_aucell_scores(
     adata.obs[score_name] = adata.obs[ucell_col].values
     if ucell_col != score_name:
         del adata.obs[ucell_col]
+
+    if smooth:
+        pyucell.smooth_knn_scores(
+            adata,
+            obs_columns=[score_name],
+            k=n_neighbors,
+            use_rep=use_rep,
+        )
+        smoothed_col = f"{score_name}_kNN"
+        adata.obs[score_name] = adata.obs[smoothed_col].values
+        del adata.obs[smoothed_col]
 
     return adata if copy else None

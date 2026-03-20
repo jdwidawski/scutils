@@ -345,6 +345,39 @@ class TestComputeAucellScores:
         )
         assert "aucell_sym" in scoring_adata.obs.columns
 
+    def test_smooth_true_adds_obs_column(self, scoring_adata: AnnData) -> None:
+        compute_aucell_scores(
+            scoring_adata, genes=self.GENES, smooth=True, use_rep="X_pca"
+        )
+        assert "aucell_score" in scoring_adata.obs.columns
+
+    def test_smooth_true_no_residual_knn_column(
+        self, scoring_adata: AnnData
+    ) -> None:
+        compute_aucell_scores(
+            scoring_adata, genes=self.GENES, smooth=True, use_rep="X_pca"
+        )
+        assert "aucell_score_kNN" not in scoring_adata.obs.columns
+
+    def test_smooth_true_scores_finite(self, scoring_adata: AnnData) -> None:
+        compute_aucell_scores(
+            scoring_adata, genes=self.GENES, smooth=True, use_rep="X_pca"
+        )
+        assert np.isfinite(scoring_adata.obs["aucell_score"]).all()
+
+    def test_smooth_false_and_true_differ(self, scoring_adata: AnnData) -> None:
+        """Smoothed scores should differ from unsmoothed ones."""
+        import anndata as ad
+
+        raw = scoring_adata.copy()
+        smoothed = scoring_adata.copy()
+        compute_aucell_scores(raw, genes=self.GENES)
+        compute_aucell_scores(smoothed, genes=self.GENES, smooth=True, use_rep="X_pca")
+        assert not np.allclose(
+            raw.obs["aucell_score"].values,
+            smoothed.obs["aucell_score"].values,
+        )
+
     def test_missing_dep_raises(
         self,
         scoring_adata: AnnData,
