@@ -1,6 +1,6 @@
 """Plotting utilities for single-cell data visualisation."""
 
-from scutils.plotting.barplots import cell_count_barplot
+from scutils.plotting.barplots import cell_count_barplot, cell_count_barplot_multiplot
 from scutils.plotting.boxplots import (
     plot_feature_boxplot,
     plot_feature_boxplot_multiplot,
@@ -15,6 +15,7 @@ from scutils.plotting.heatmaps import (
     heatmap_expression_two_categories,
     heatmap_expression_two_categories_multiplot,
     heatmap_feature_aggregated_three_categories,
+    plot_correlation_distance_heatmap,
 )
 from scutils.plotting.embeddings import (
     embedding_category_multiplot,
@@ -35,6 +36,7 @@ from scutils.plotting.functional import create_pathway_dotplot, load_pathway_dat
 __all__ = [
     # barplots
     "cell_count_barplot",
+    "cell_count_barplot_multiplot",
     # boxplots
     "plot_feature_boxplot",
     "plot_feature_boxplot_multiplot",
@@ -47,6 +49,7 @@ __all__ = [
     "heatmap_expression_two_categories",
     "heatmap_expression_two_categories_multiplot",
     "heatmap_feature_aggregated_three_categories",
+    "plot_correlation_distance_heatmap",
     # embeddings
     "embedding_category_multiplot",
     "embedding_gene_expression_multiplot",

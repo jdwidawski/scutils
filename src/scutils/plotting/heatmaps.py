@@ -11,6 +11,8 @@ import scanpy as sc
 import scipy.stats
 from anndata import AnnData
 from matplotlib.figure import Figure
+from scipy.cluster.hierarchy import dendrogram, linkage
+from scipy.spatial.distance import squareform
 
 
 # ---------------------------------------------------------------------------
@@ -1211,5 +1213,246 @@ def heatmap_feature_aggregated_three_categories(
             heatmap_ax.set_ylabel(y)
 
         heatmap_ax.grid(False)
+
+    return fig
+
+
+def plot_correlation_distance_heatmap(
+    adata: AnnData,
+    groupby: str,
+    linkage_method: Literal["complete", "average", "ward", "single"] = "complete",
+    dendrogram_key: Optional[str] = None,
+    figsize: Tuple[float, float] = (8.0, 7.0),
+    cmap: str = "RdYlGn_r",
+    annot_fmt: str = ".2f",
+    annot_fontsize: float = 7.0,
+    dendrogram_ratio: float = 0.15,
+    show_top_dendrogram: bool = True,
+    colorbar_label: str = "Distance (1 \u2212 r)",
+) -> matplotlib.figure.Figure:
+    """Plot a pairwise-distance heatmap with dendrogram from a Scanpy correlation matrix.
+
+    Reads the correlation matrix stored in ``adata.uns`` by
+    ``sc.tl.dendrogram`` and converts it to a distance matrix
+    (``1 \u2212 correlation``).  The groups are reordered to match the
+    dendrogram leaf order used by Scanpy, and the distances are
+    annotated inside each cell of the heatmap.
+
+    Args:
+        adata: Annotated data matrix.  Must contain a dendrogram entry
+            in ``adata.uns`` computed with ``sc.tl.dendrogram``.
+        groupby: The ``groupby`` key passed to ``sc.tl.dendrogram``
+            (e.g. ``"cell_type"``).  Used to look up
+            ``adata.uns["dendrogram_{groupby}"]``.
+        linkage_method: Hierarchical linkage method used to recompute the
+            dendrogram for the distance matrix.  Defaults to
+            ``"complete"`` (matching the Scanpy default).
+        dendrogram_key: Full key in ``adata.uns`` for the dendrogram dict.
+            When ``None``, defaults to ``"dendrogram_{groupby}"``.
+        figsize: Overall figure size in inches.  Defaults to ``(8.0, 7.0)``.
+        cmap: Matplotlib colormap name for the heatmap.  Defaults to
+            ``"RdYlGn_r"`` (low distance = green, high = red).
+        annot_fmt: Format string for distance annotations.
+            Defaults to ``".2f"``.
+        annot_fontsize: Font size for in-cell annotations.
+            Defaults to ``7.0``.
+        dendrogram_ratio: Fraction of the figure width/height allocated to
+            the left dendrogram panel (and the top dendrogram panel when
+            ``show_top_dendrogram=True``).  Defaults to ``0.15``.
+        show_top_dendrogram: When ``True`` (default), draw the top
+            dendrogram panel above the heatmap.  Set to ``False`` to omit
+            it and give the full vertical space to the heatmap.
+        colorbar_label: Label for the colour bar.
+            Defaults to ``"Distance (1 \u2212 r)"``.
+
+    Returns:
+        The matplotlib figure.
+
+    Raises:
+        KeyError: If the dendrogram key is not found in ``adata.uns``.
+        KeyError: If ``"correlation_matrix"`` is absent from the dendrogram
+            entry.
+
+    Example:
+        >>> import scanpy as sc
+        >>> sc.tl.dendrogram(adata, groupby="cell_type")
+        >>> fig = plot_correlation_distance_heatmap(adata, groupby="cell_type")
+        >>> fig.savefig("distance_heatmap.png", dpi=150)
+    """
+    # ------------------------------------------------------------------ #
+    # 1. Retrieve stored dendrogram data                                  #
+    # ------------------------------------------------------------------ #
+    if dendrogram_key is None:
+        dendrogram_key = f"dendrogram_{groupby}"
+
+    if dendrogram_key not in adata.uns:
+        raise KeyError(
+            f"Dendrogram key '{dendrogram_key}' not found in adata.uns. "
+            f"Run sc.tl.dendrogram(adata, groupby='{groupby}') first."
+        )
+
+    dendro_data = adata.uns[dendrogram_key]
+
+    if "correlation_matrix" not in dendro_data:
+        raise KeyError(
+            f"'correlation_matrix' not found in adata.uns['{dendrogram_key}']. "
+            "Re-run sc.tl.dendrogram() to populate it."
+        )
+
+    cor_matrix = np.array(dendro_data["correlation_matrix"])
+    categories_ordered: list = list(dendro_data["categories_ordered"])
+
+    # ------------------------------------------------------------------ #
+    # 2. Build distance matrix in Scanpy leaf order                       #
+    # ------------------------------------------------------------------ #
+    distance_matrix = 1.0 - cor_matrix
+    distance_df = pd.DataFrame(
+        distance_matrix,
+        index=categories_ordered,
+        columns=categories_ordered,
+    )
+
+    # ------------------------------------------------------------------ #
+    # 3. Recompute linkage and derive leaf order                          #
+    # ------------------------------------------------------------------ #
+    condensed = squareform(distance_df.values, checks=False)
+    Z = linkage(condensed, method=linkage_method)
+
+    ddata_ref = dendrogram(Z, labels=categories_ordered, no_plot=True)
+    leaf_order: list[int] = ddata_ref["leaves"]
+    ordered_labels = [categories_ordered[i] for i in leaf_order]
+
+    # ------------------------------------------------------------------ #
+    # 4. Reorder distance matrix to match dendrogram leaves               #
+    # ------------------------------------------------------------------ #
+    dist_ordered = distance_df.loc[ordered_labels, ordered_labels].values
+    n = len(ordered_labels)
+
+    # ------------------------------------------------------------------ #
+    # 5. Build figure layout                                              #
+    # ------------------------------------------------------------------ #
+    # GridSpec layout:
+    #
+    #   show_top_dendrogram=True          show_top_dendrogram=False
+    #   +----------+--------------+       +----------+--------------+
+    #   |  corner  |  top dendro  |       |  left    |   heatmap    |
+    #   +----------+--------------+       |  dendro  +--------------+
+    #   |  left    |   heatmap    |       |          |  colorbar    |
+    #   |  dendro  +--------------+       +----------+--------------+
+    #   |          |  colorbar    |
+    #   +----------+--------------+
+
+    dr = dendrogram_ratio
+
+    if show_top_dendrogram:
+        n_rows = 3
+        height_ratios = [dr, 1.0 - dr - 0.08, 0.08]
+    else:
+        n_rows = 2
+        height_ratios = [1.0 - 0.08, 0.08]
+
+    fig = plt.figure(figsize=figsize)
+    gs = fig.add_gridspec(
+        n_rows, 2,
+        width_ratios=[dr, 1.0 - dr],
+        height_ratios=height_ratios,
+        hspace=0.04,
+        wspace=0.02,
+    )
+
+    if show_top_dendrogram:
+        ax_corner = fig.add_subplot(gs[0, 0])
+        ax_dendro_top = fig.add_subplot(gs[0, 1])
+        ax_dendro_left = fig.add_subplot(gs[1, 0])
+        ax_heatmap = fig.add_subplot(gs[1, 1])
+        ax_colorbar = fig.add_subplot(gs[2, 1])
+        ax_corner.set_visible(False)
+    else:
+        ax_dendro_left = fig.add_subplot(gs[0, 0])
+        ax_heatmap = fig.add_subplot(gs[0, 1])
+        ax_colorbar = fig.add_subplot(gs[1, 1])
+        fig.add_subplot(gs[1, 0]).set_visible(False)
+
+    # ------------------------------------------------------------------ #
+    # 6. Left dendrogram                                                  #
+    # ------------------------------------------------------------------ #
+    dendrogram(
+        Z,
+        labels=ordered_labels,
+        ax=ax_dendro_left,
+        orientation="left",
+        link_color_func=lambda _: "black",
+        no_labels=True,
+    )
+    ax_dendro_left.invert_yaxis()
+    ax_dendro_left.axis("off")
+
+    # ------------------------------------------------------------------ #
+    # 7. Top dendrogram \u2014 aligned to heatmap columns                      #
+    # ------------------------------------------------------------------ #
+    if show_top_dendrogram:
+        # scipy places leaf i at position 10*(i+1) - 5  ->  5, 15, 25, ...
+        # Setting xlim to [0, 10n] maps each leaf at 10k-5 exactly above
+        # heatmap column k-1, since imshow x-range is [-0.5, n-0.5].
+        dendrogram(
+            Z,
+            labels=ordered_labels,
+            ax=ax_dendro_top,
+            orientation="top",
+            link_color_func=lambda _: "black",
+            no_labels=True,
+        )
+        ax_dendro_top.set_xlim(0, 10.0 * n)
+        ax_dendro_top.axis("off")
+
+    # ------------------------------------------------------------------ #
+    # 8. Heatmap                                                           #
+    # ------------------------------------------------------------------ #
+    vmax_val = float(np.nanmax(dist_ordered[~np.eye(n, dtype=bool)]))
+
+    im = ax_heatmap.imshow(
+        dist_ordered,
+        cmap=cmap,
+        aspect="auto",
+        vmin=0.0,
+        vmax=vmax_val,
+    )
+
+    ax_heatmap.set_facecolor("white")
+    ax_heatmap.grid(False)
+    for spine in ax_heatmap.spines.values():
+        spine.set_visible(False)
+
+    # X ticks at the bottom
+    ax_heatmap.set_xticks(range(n))
+    ax_heatmap.set_xticklabels(ordered_labels, rotation=90, fontsize=8)
+    ax_heatmap.xaxis.set_ticks_position("bottom")
+    ax_heatmap.xaxis.set_label_position("bottom")
+
+    # Y ticks on the right
+    ax_heatmap.set_yticks(range(n))
+    ax_heatmap.set_yticklabels(ordered_labels, fontsize=8)
+    ax_heatmap.yaxis.set_ticks_position("right")
+    ax_heatmap.yaxis.set_label_position("right")
+
+    # Annotations
+    for i in range(n):
+        for j in range(n):
+            val = dist_ordered[i, j]
+            text_color = "white" if val > vmax_val * 0.65 else "black"
+            ax_heatmap.text(
+                j, i,
+                format(val, annot_fmt),
+                ha="center", va="center",
+                fontsize=annot_fontsize,
+                color=text_color,
+            )
+
+    # ------------------------------------------------------------------ #
+    # 9. Horizontal colorbar spanning the heatmap width                   #
+    # ------------------------------------------------------------------ #
+    cbar = fig.colorbar(im, cax=ax_colorbar, orientation="horizontal")
+    cbar.set_label(colorbar_label, fontsize=9)
+    cbar.ax.tick_params(labelsize=8)
 
     return fig
