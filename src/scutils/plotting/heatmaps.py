@@ -1300,64 +1300,84 @@ def plot_correlation_distance_heatmap(
         )
 
     cor_matrix = np.array(dendro_data["correlation_matrix"])
+    # ``categories_ordered`` is the LEAF-ORDER list.  The correlation_matrix
+    # rows/columns follow the ORIGINAL adata.obs[groupby].cat.categories order.
     categories_ordered: list = list(dendro_data["categories_ordered"])
 
     # ------------------------------------------------------------------ #
-    # 2. Build distance matrix in Scanpy leaf order                       #
+    # 2. Resolve original category order (= row/col order of cor_matrix)  #
+    # ------------------------------------------------------------------ #
+    # Scanpy stores the correlation_matrix in the order of the original
+    # categorical dtype, NOT in leaf order.  We must label the DataFrame
+    # with the original order so that values and labels stay aligned.
+    if hasattr(adata.obs[groupby], "cat"):
+        original_categories: list = list(adata.obs[groupby].cat.categories)
+    else:
+        # Recover original order by inverting the stored permutation.
+        idx_ordered = list(dendro_data["categories_idx_ordered"])
+        original_categories = [""] * len(idx_ordered)
+        for new_i, orig_i in enumerate(idx_ordered):
+            original_categories[orig_i] = categories_ordered[new_i]
+
+    # ------------------------------------------------------------------ #
+    # 3. Build distance matrix with original category labels              #
     # ------------------------------------------------------------------ #
     distance_matrix = 1.0 - cor_matrix
     distance_df = pd.DataFrame(
         distance_matrix,
-        index=categories_ordered,
-        columns=categories_ordered,
+        index=original_categories,
+        columns=original_categories,
     )
 
     # ------------------------------------------------------------------ #
-    # 3. Recompute linkage and derive leaf order                          #
+    # 4. Linkage and leaf order                                            #
     # ------------------------------------------------------------------ #
-    condensed = squareform(distance_df.values, checks=False)
-    Z = linkage(condensed, method=linkage_method)
+    # Use the linkage stored by sc.tl.dendrogram when available so that
+    # the rendered dendrogram is identical to the Scanpy one.
+    if "linkage" in dendro_data:
+        Z = np.array(dendro_data["linkage"])
+    else:
+        condensed = squareform(distance_df.values, checks=False)
+        Z = linkage(condensed, method=linkage_method)
 
-    ddata_ref = dendrogram(Z, labels=categories_ordered, no_plot=True)
+    ddata_ref = dendrogram(Z, labels=original_categories, no_plot=True)
     leaf_order: list[int] = ddata_ref["leaves"]
-    ordered_labels = [categories_ordered[i] for i in leaf_order]
+    ordered_labels = [original_categories[i] for i in leaf_order]
 
     # ------------------------------------------------------------------ #
-    # 4. Reorder distance matrix to match dendrogram leaves               #
+    # 5. Reorder distance matrix to match dendrogram leaves               #
     # ------------------------------------------------------------------ #
     dist_ordered = distance_df.loc[ordered_labels, ordered_labels].values
     n = len(ordered_labels)
 
     # ------------------------------------------------------------------ #
-    # 5. Build figure layout                                              #
+    # 6. Build figure layout                                              #
     # ------------------------------------------------------------------ #
-    # GridSpec layout:
+    # layout="constrained" lets matplotlib automatically reserve space for
+    # tick labels so they are never clipped by adjacent axes.
     #
-    #   show_top_dendrogram=True          show_top_dendrogram=False
-    #   +----------+--------------+       +----------+--------------+
-    #   |  corner  |  top dendro  |       |  left    |   heatmap    |
-    #   +----------+--------------+       |  dendro  +--------------+
-    #   |  left    |   heatmap    |       |          |  colorbar    |
-    #   |  dendro  +--------------+       +----------+--------------+
-    #   |          |  colorbar    |
-    #   +----------+--------------+
+    #   show_top_dendrogram=True     show_top_dendrogram=False
+    #   +----------+-----------+    +----------+-----------+
+    #   |  corner  | top dendro|    |  left    |  heatmap  |
+    #   +----------+-----------+    |  dendro  |           |
+    #   |  left    |  heatmap  |    |          |           |
+    #   |  dendro  |           |    +----------+-----------+
+    #   +----------+-----------+
 
     dr = dendrogram_ratio
 
     if show_top_dendrogram:
-        n_rows = 3
-        height_ratios = [dr, 1.0 - dr - 0.08, 0.08]
-    else:
         n_rows = 2
-        height_ratios = [1.0 - 0.08, 0.08]
+        height_ratios = [dr, 1.0 - dr]
+    else:
+        n_rows = 1
+        height_ratios = [1.0]
 
-    fig = plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=figsize, layout="constrained")
     gs = fig.add_gridspec(
         n_rows, 2,
         width_ratios=[dr, 1.0 - dr],
         height_ratios=height_ratios,
-        hspace=0.04,
-        wspace=0.02,
     )
 
     if show_top_dendrogram:
@@ -1365,16 +1385,13 @@ def plot_correlation_distance_heatmap(
         ax_dendro_top = fig.add_subplot(gs[0, 1])
         ax_dendro_left = fig.add_subplot(gs[1, 0])
         ax_heatmap = fig.add_subplot(gs[1, 1])
-        ax_colorbar = fig.add_subplot(gs[2, 1])
         ax_corner.set_visible(False)
     else:
         ax_dendro_left = fig.add_subplot(gs[0, 0])
         ax_heatmap = fig.add_subplot(gs[0, 1])
-        ax_colorbar = fig.add_subplot(gs[1, 1])
-        fig.add_subplot(gs[1, 0]).set_visible(False)
 
     # ------------------------------------------------------------------ #
-    # 6. Left dendrogram                                                  #
+    # 7. Left dendrogram                                                  #
     # ------------------------------------------------------------------ #
     dendrogram(
         Z,
@@ -1388,7 +1405,7 @@ def plot_correlation_distance_heatmap(
     ax_dendro_left.axis("off")
 
     # ------------------------------------------------------------------ #
-    # 7. Top dendrogram \u2014 aligned to heatmap columns                      #
+    # 8. Top dendrogram — aligned to heatmap columns                      #
     # ------------------------------------------------------------------ #
     if show_top_dendrogram:
         # scipy places leaf i at position 10*(i+1) - 5  ->  5, 15, 25, ...
@@ -1406,7 +1423,7 @@ def plot_correlation_distance_heatmap(
         ax_dendro_top.axis("off")
 
     # ------------------------------------------------------------------ #
-    # 8. Heatmap                                                           #
+    # 9. Heatmap                                                           #
     # ------------------------------------------------------------------ #
     vmax_val = float(np.nanmax(dist_ordered[~np.eye(n, dtype=bool)]))
 
@@ -1449,9 +1466,19 @@ def plot_correlation_distance_heatmap(
             )
 
     # ------------------------------------------------------------------ #
-    # 9. Horizontal colorbar spanning the heatmap width                   #
+    # 10. Colorbar: horizontal, below heatmap, 50 % of heatmap width      #
     # ------------------------------------------------------------------ #
-    cbar = fig.colorbar(im, cax=ax_colorbar, orientation="horizontal")
+    # Using ax=ax_heatmap (not cax) lets constrained_layout handle the
+    # spacing between the heatmap tick labels and the colorbar.
+    # shrink=0.5 makes it half the heatmap width; pad adds vertical space.
+    cbar = fig.colorbar(
+        im,
+        ax=ax_heatmap,
+        location="bottom",
+        shrink=0.5,
+        pad=0.15,
+        aspect=40,
+    )
     cbar.set_label(colorbar_label, fontsize=9)
     cbar.ax.tick_params(labelsize=8)
 
