@@ -28,6 +28,7 @@ coverage.xml
 .ipynb_checkpoints/
 *.ipynb
 !notebooks/*.ipynb
+!notebooks/**/*.ipynb
 
 # VS Code
 .vscode/
