@@ -31,6 +31,9 @@ dependencies = [
     "nbformat>=5.10.4",
     "kaleido>=1.2.0",
     "upsetplot>=0.9",
+    "pyucell>=0.5.0",
+    "jinja2>=3.1",
+    "python-pptx>=1.0",
 ]
 
 [project.optional-dependencies]
