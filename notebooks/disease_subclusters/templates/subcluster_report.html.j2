@@ -5,10 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Disease Subcluster Report — {{ tissue }}</title>
 
-  <!-- DataTables CSS (inlined for offline use) -->
-  <style>
-{{ datatables_css }}
-  </style>
+  <!-- DataTables CSS (CDN) -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/2.0.7/css/dataTables.dataTables.min.css" />
 
   <style>
     /* ── Reset & base ── */
@@ -410,10 +408,8 @@
   </div><!-- /main-content -->
 </div><!-- /layout -->
 
-<!-- ── DataTables JS (inlined for offline use) ───────────────────────── -->
-<script>
-{{ datatables_js }}
-</script>
+<!-- ── DataTables JS (CDN) ──────────────────────────────────────────── -->
+<script src="https://cdn.datatables.net/2.0.7/js/dataTables.min.js"></script>
 
 <script>
   var _dtInstances = {};
@@ -450,25 +446,30 @@
       var tbl = document.getElementById("de-" + anchor);
       if (!tbl) return;
 
-      // Set header columns
-      tbl.querySelector("thead tr").innerHTML =
-        columns.map(function(c) { return "<th>" + c + "</th>"; }).join("");
-
       // Show table, hide loading placeholder
       tbl.style.display = "";
       var loading = document.getElementById("de-loading-" + anchor);
       if (loading) loading.style.display = "none";
+
+      // Determine sort order: LFC descending (upregulated first), then pval ascending
+      var lfcI  = columns.findIndex(function(c) {
+        return c === "log2FoldChange" || c === "logfoldchanges";
+      });
+      var pvalI = columns.findIndex(function(c) {
+        return c === "padj" || c === "pvals_adj" || c === "pvalue" || c === "pvals";
+      });
+      var order = [];
+      if (lfcI  >= 0) order.push([lfcI,  "desc"]);
+      if (pvalI >= 0) order.push([pvalI, "asc"]);
 
       _dtInstances[anchor] = new DataTable(tbl, {
         data: rows,
         columns: columns.map(function(c) { return { title: c }; }),
         pageLength: 20,
         lengthMenu: [10, 20, 50, 100],
-        order: [],
+        order: order,
         scrollX: true,
         deferRender: true,
-        // Re-use the header we already set; suppress DataTables' own header write
-        columnDefs: [],
       });
     }
   }
