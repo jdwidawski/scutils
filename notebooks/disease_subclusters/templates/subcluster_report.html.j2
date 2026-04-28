@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Disease Subcluster Report — {{ tissue }}</title>
 
-  <!-- DataTables CSS (inlined) -->
+  <!-- DataTables CSS (inlined for offline use) -->
   <style>
 {{ datatables_css }}
   </style>
@@ -22,7 +22,7 @@
       flex-direction: column;
     }
 
-    /* ── Top header (fixed) ── */
+    /* ── Sticky top header ── */
     .page-header {
       background: #1a1a2e;
       color: #fff;
@@ -35,7 +35,7 @@
     .page-header h1 { margin: 0 0 2px; font-size: 1.2rem; }
     .page-header p  { margin: 0; opacity: 0.65; font-size: 0.82rem; }
 
-    /* ── Body layout: sidebar + main ── */
+    /* ── Two-column layout ── */
     .layout {
       display: flex;
       flex: 1;
@@ -80,10 +80,7 @@
       outline: none;
     }
     .sidebar-search input:focus { border-color: #4a90d9; }
-    .sidebar-list {
-      overflow-y: auto;
-      flex: 1;
-    }
+    .sidebar-list { overflow-y: auto; flex: 1; }
     .sidebar-item {
       padding: 9px 14px;
       cursor: pointer;
@@ -110,14 +107,14 @@
       margin-top: 3px;
     }
 
-    /* ── Main content ── */
+    /* ── Main panel ── */
     .main-content {
       flex: 1;
       overflow-y: auto;
       padding: 24px 32px 60px;
     }
 
-    /* ── Subcluster section (one at a time) ── */
+    /* ── One subcluster visible at a time ── */
     .sc-section { display: none; }
     .sc-section.visible { display: block; }
 
@@ -129,7 +126,6 @@
       border-radius: 6px 6px 0 0;
       display: flex;
       align-items: center;
-      justify-content: space-between;
     }
     .sc-header h2 { margin: 0; font-size: 1rem; letter-spacing: .02em; }
     .sc-header .badge {
@@ -150,36 +146,18 @@
     /* ── Stats grid ── */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
       gap: 10px;
       margin-bottom: 22px;
     }
-    .stat-box {
-      background: #f8f9fb;
-      border: 1px solid #e4e8ee;
-      border-radius: 4px;
-      padding: 9px 12px;
-    }
+    .stat-box { background: #f8f9fb; border: 1px solid #e4e8ee; border-radius: 4px; padding: 9px 12px; }
     .stat-box .label { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: .05em; }
     .stat-box .value { font-size: 1.05rem; font-weight: 600; margin-top: 2px; word-break: break-word; }
 
     /* ── Disease breakdown table ── */
-    .breakdown-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.85rem;
-      margin-bottom: 22px;
-    }
-    .breakdown-table th {
-      background: #f0f2f5;
-      text-align: left;
-      padding: 7px 12px;
-      border-bottom: 2px solid #dde2ea;
-    }
-    .breakdown-table td {
-      padding: 6px 12px;
-      border-bottom: 1px solid #edf0f4;
-    }
+    .breakdown-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-bottom: 22px; }
+    .breakdown-table th { background: #f0f2f5; text-align: left; padding: 7px 12px; border-bottom: 2px solid #dde2ea; }
+    .breakdown-table td { padding: 6px 12px; border-bottom: 1px solid #edf0f4; }
     .breakdown-table tr:last-child td { border-bottom: none; }
 
     /* ── Section labels ── */
@@ -195,19 +173,10 @@
     }
 
     /* ── Image grid ── */
-    .img-grid {
-      display: grid;
-      gap: 14px;
-      margin-bottom: 20px;
-    }
+    .img-grid { display: grid; gap: 14px; margin-bottom: 20px; }
     .img-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
     .img-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
-    .img-grid.cols-1 { grid-template-columns: 1fr; }
-    .img-card {
-      border: 1px solid #e4e8ee;
-      border-radius: 4px;
-      overflow: hidden;
-    }
+    .img-card { border: 1px solid #e4e8ee; border-radius: 4px; overflow: hidden; }
     .img-card .img-title {
       background: #f8f9fb;
       font-size: 0.75rem;
@@ -223,17 +192,13 @@
     .download-link:hover { text-decoration: underline; }
 
     /* ── DE table ── */
-    .de-table-wrapper { overflow-x: auto; margin-top: 8px; }
+    .de-table-wrapper { overflow-x: auto; margin-top: 8px; min-height: 80px; }
     table.de-table { width: 100% !important; font-size: 0.82rem; }
     table.de-table thead th { background: #f0f2f5; }
+    .de-loading { color: #aaa; font-size: 0.85rem; padding: 12px 0; }
 
     /* ── Empty state ── */
-    .empty-state {
-      color: #aaa;
-      font-size: 0.9rem;
-      text-align: center;
-      padding: 60px 20px;
-    }
+    .empty-state { color: #aaa; font-size: 0.9rem; text-align: center; padding: 60px 20px; }
     .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; }
 
     /* ── Responsive ── */
@@ -251,7 +216,7 @@
 </head>
 <body>
 
-<!-- ── Fixed top header ──────────────────────────────────────────────── -->
+<!-- ── Sticky top header ─────────────────────────────────────────────── -->
 <div class="page-header">
   <h1>Disease Subcluster Report — {{ tissue }}</h1>
   <p>{{ subclusters | length }} subcluster(s) &nbsp;·&nbsp; Generated {{ generated_at }}</p>
@@ -260,15 +225,17 @@
 <!-- ── Two-column layout ─────────────────────────────────────────────── -->
 <div class="layout">
 
-  <!-- Sidebar: subcluster list -->
+  <!-- Sidebar: searchable subcluster list -->
   <nav class="sidebar">
     <div class="sidebar-title">Subclusters</div>
     <div class="sidebar-search">
-      <input type="text" id="sidebar-filter" placeholder="Filter subclusters…" oninput="filterSidebar(this.value)" />
+      <input type="text" id="sidebar-filter" placeholder="Filter subclusters…"
+             oninput="filterSidebar(this.value)" />
     </div>
     <div class="sidebar-list" id="sidebar-list">
       {% for sc in subclusters %}
-      <div class="sidebar-item" data-target="{{ sc.anchor }}" onclick="showSubcluster('{{ sc.anchor }}', this)">
+      <div class="sidebar-item" data-target="{{ sc.anchor }}"
+           onclick="showSubcluster('{{ sc.anchor }}', this)">
         <div class="sc-label">{{ sc.label }}</div>
         <span class="sc-badge">{{ sc.disease }}</span>
       </div>
@@ -276,22 +243,18 @@
     </div>
   </nav>
 
-  <!-- Main panel -->
+  <!-- Main panel: one subcluster at a time -->
   <div class="main-content" id="main-content">
 
-    <!-- Empty state shown before a subcluster is selected -->
     <div id="empty-state" class="empty-state">
       <div class="icon">🔬</div>
       <div>Select a subcluster from the panel on the left to view its details.</div>
     </div>
 
-    <!-- One section per subcluster, hidden by default -->
     {% for sc in subclusters %}
     <div class="sc-section" id="sc-{{ sc.anchor }}">
       <div class="sc-header">
-        <div>
-          <h2>{{ sc.label }} <span class="badge">{{ sc.disease }}</span></h2>
-        </div>
+        <h2>{{ sc.label }} <span class="badge">{{ sc.disease }}</span></h2>
       </div>
       <div class="sc-body">
 
@@ -365,34 +328,37 @@
         </table>
         {% endif %}
 
-        <!-- UMAP panels -->
+        <!-- UMAP panels — images are separate files in img/ -->
         <div class="section-label">UMAP embeddings</div>
         <div class="img-grid cols-3">
-          {% if sc.umap_celltype_b64 %}
+          {% if sc.umap_celltype_path %}
           <div class="img-card">
             <div class="img-title">
               Cell type
-              <a class="download-link" href="data:image/png;base64,{{ sc.umap_celltype_b64 }}" download="{{ sc.anchor }}_umap_celltype.png">⬇ download</a>
+              <a class="download-link" href="{{ sc.umap_celltype_path }}"
+                 download="{{ sc.anchor }}_umap_celltype.png">⬇ download</a>
             </div>
-            <img src="data:image/png;base64,{{ sc.umap_celltype_b64 }}" alt="UMAP cell type" loading="lazy" />
+            <img src="{{ sc.umap_celltype_path }}" alt="UMAP cell type" loading="lazy" />
           </div>
           {% endif %}
-          {% if sc.umap_disease_b64 %}
+          {% if sc.umap_disease_path %}
           <div class="img-card">
             <div class="img-title">
               Disease condition
-              <a class="download-link" href="data:image/png;base64,{{ sc.umap_disease_b64 }}" download="{{ sc.anchor }}_umap_disease.png">⬇ download</a>
+              <a class="download-link" href="{{ sc.umap_disease_path }}"
+                 download="{{ sc.anchor }}_umap_disease.png">⬇ download</a>
             </div>
-            <img src="data:image/png;base64,{{ sc.umap_disease_b64 }}" alt="UMAP disease" loading="lazy" />
+            <img src="{{ sc.umap_disease_path }}" alt="UMAP disease" loading="lazy" />
           </div>
           {% endif %}
-          {% if sc.umap_highlight_b64 %}
+          {% if sc.umap_highlight_path %}
           <div class="img-card">
             <div class="img-title">
               Subcluster highlight
-              <a class="download-link" href="data:image/png;base64,{{ sc.umap_highlight_b64 }}" download="{{ sc.anchor }}_umap_highlight.png">⬇ download</a>
+              <a class="download-link" href="{{ sc.umap_highlight_path }}"
+                 download="{{ sc.anchor }}_umap_highlight.png">⬇ download</a>
             </div>
-            <img src="data:image/png;base64,{{ sc.umap_highlight_b64 }}" alt="UMAP highlight" loading="lazy" />
+            <img src="{{ sc.umap_highlight_path }}" alt="UMAP highlight" loading="lazy" />
           </div>
           {% endif %}
         </div>
@@ -400,51 +366,46 @@
         <!-- Volcano + Dotplot -->
         <div class="section-label">Differential expression &amp; functional enrichment</div>
         <div class="img-grid cols-2">
-          {% if sc.volcano_b64 %}
+          {% if sc.volcano_path %}
           <div class="img-card">
             <div class="img-title">
               Volcano plot
-              <a class="download-link" href="data:image/png;base64,{{ sc.volcano_b64 }}" download="{{ sc.anchor }}_volcano.png">⬇ download</a>
+              <a class="download-link" href="{{ sc.volcano_path }}"
+                 download="{{ sc.anchor }}_volcano.png">⬇ download</a>
             </div>
-            <img src="data:image/png;base64,{{ sc.volcano_b64 }}" alt="Volcano plot" loading="lazy" />
+            <img src="{{ sc.volcano_path }}" alt="Volcano plot" loading="lazy" />
           </div>
           {% endif %}
-          {% if sc.dotplot_b64 %}
+          {% if sc.dotplot_path %}
           <div class="img-card">
             <div class="img-title">
               Functional enrichment
-              <a class="download-link" href="data:image/png;base64,{{ sc.dotplot_b64 }}" download="{{ sc.anchor }}_enrichment.png">⬇ download</a>
+              <a class="download-link" href="{{ sc.dotplot_path }}"
+                 download="{{ sc.anchor }}_enrichment.png">⬇ download</a>
             </div>
-            <img src="data:image/png;base64,{{ sc.dotplot_b64 }}" alt="Enrichment dotplot" loading="lazy" />
+            <img src="{{ sc.dotplot_path }}" alt="Enrichment dotplot" loading="lazy" />
           </div>
           {% endif %}
         </div>
 
-        <!-- DE table -->
-        {% if sc.de_records %}
-        <div class="section-label">Differential expression table</div>
-        <div class="de-table-wrapper">
-          <table id="de-{{ sc.anchor }}" class="de-table display" style="width:100%">
-            <thead>
-              <tr>
-                {% for col in sc.de_columns %}
-                <th>{{ col }}</th>
-                {% endfor %}
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in sc.de_records %}
-              <tr>
-                {% for val in row %}
-                <td>{{ val }}</td>
-                {% endfor %}
-              </tr>
-              {% endfor %}
-            </tbody>
+        <!-- DE table: DataTable is built lazily from embedded JSON the first
+             time this subcluster is selected, so column widths are correct. -->
+        {% if sc.de_json %}
+        <div class="section-label">Significant DE genes (padj &lt; threshold)</div>
+        <div class="de-table-wrapper" id="de-wrapper-{{ sc.anchor }}">
+          <p class="de-loading" id="de-loading-{{ sc.anchor }}">Loading table…</p>
+          <table id="de-{{ sc.anchor }}" class="de-table display"
+                 style="width:100%; display:none">
+            <thead><tr></tr></thead>
+            <tbody></tbody>
           </table>
         </div>
+        <!-- Embedded DE data (orient="split": .columns + .data) -->
+        <script type="application/json" id="de-data-{{ sc.anchor }}">{{ sc.de_json }}</script>
         {% else %}
-        <p style="color:#888; font-size:0.85rem;">No DE results available for this subcluster.</p>
+        <p style="color:#888; font-size:0.85rem; margin-top:16px;">
+          No significant DE results available for this subcluster.
+        </p>
         {% endif %}
 
       </div><!-- /sc-body -->
@@ -454,64 +415,81 @@
   </div><!-- /main-content -->
 </div><!-- /layout -->
 
-<!-- ── Scripts ───────────────────────────────────────────────────────── -->
+<!-- ── DataTables JS (inlined for offline use) ───────────────────────── -->
 <script>
 {{ datatables_js }}
 </script>
 
 <script>
-  var _dtInstances = {};   // cache DataTable instances to avoid re-init
+  var _dtInstances = {};
 
   function showSubcluster(anchor, el) {
-    // Hide all sections
+    // Hide all, show selected
     document.querySelectorAll(".sc-section").forEach(function(s) {
       s.classList.remove("visible");
     });
-    // Show selected
     var section = document.getElementById("sc-" + anchor);
     if (section) section.classList.add("visible");
 
-    // Mark active sidebar item
+    // Update sidebar highlight
     document.querySelectorAll(".sidebar-item").forEach(function(i) {
       i.classList.remove("active");
     });
     if (el) el.classList.add("active");
 
-    // Hide empty state
     document.getElementById("empty-state").style.display = "none";
-
-    // Scroll main content to top
     document.getElementById("main-content").scrollTop = 0;
 
-    // Init DataTable lazily (only once per subcluster, and only when visible)
+    // Initialise DataTable lazily — element is now visible so widths are correct
     if (!_dtInstances[anchor]) {
+      var dataEl = document.getElementById("de-data-" + anchor);
+      if (!dataEl) return;
+
+      var payload;
+      try { payload = JSON.parse(dataEl.textContent); } catch(e) { return; }
+
+      var columns = payload.columns || [];
+      var rows    = payload.data    || [];
+      if (!columns.length) return;
+
       var tbl = document.getElementById("de-" + anchor);
-      if (tbl) {
-        _dtInstances[anchor] = new DataTable(tbl, {
-          pageLength: 20,
-          lengthMenu: [10, 20, 50, 100],
-          order: [],
-          scrollX: true,
-          deferRender: true,
-        });
-      }
+      if (!tbl) return;
+
+      // Set header columns
+      tbl.querySelector("thead tr").innerHTML =
+        columns.map(function(c) { return "<th>" + c + "</th>"; }).join("");
+
+      // Show table, hide loading placeholder
+      tbl.style.display = "";
+      var loading = document.getElementById("de-loading-" + anchor);
+      if (loading) loading.style.display = "none";
+
+      _dtInstances[anchor] = new DataTable(tbl, {
+        data: rows,
+        columns: columns.map(function(c) { return { title: c }; }),
+        pageLength: 20,
+        lengthMenu: [10, 20, 50, 100],
+        order: [],
+        scrollX: true,
+        deferRender: true,
+        // Re-use the header we already set; suppress DataTables' own header write
+        columnDefs: [],
+      });
     }
   }
 
   function filterSidebar(query) {
     var q = query.toLowerCase();
     document.querySelectorAll(".sidebar-item").forEach(function(item) {
-      var text = item.textContent.toLowerCase();
-      item.style.display = text.includes(q) ? "" : "none";
+      item.style.display = item.textContent.toLowerCase().includes(q) ? "" : "none";
     });
   }
 
-  // Auto-select first subcluster on load
+  // Auto-select first subcluster
   (function() {
     var first = document.querySelector(".sidebar-item");
     if (first) first.click();
   })();
 </script>
-
 </body>
 </html>
