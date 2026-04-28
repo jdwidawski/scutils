@@ -11,85 +11,157 @@
   </style>
 
   <style>
-    /* ── Page ── */
+    /* ── Reset & base ── */
     *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: #f4f6f8;
       color: #1a1a2e;
-      margin: 0;
-      padding: 0 0 60px;
+      display: flex;
+      flex-direction: column;
     }
 
-    /* ── Header ── */
+    /* ── Top header (fixed) ── */
     .page-header {
       background: #1a1a2e;
       color: #fff;
-      padding: 28px 40px;
+      padding: 14px 24px;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
-    .page-header h1 { margin: 0 0 4px; font-size: 1.6rem; }
-    .page-header p  { margin: 0; opacity: 0.65; font-size: 0.9rem; }
+    .page-header h1 { margin: 0 0 2px; font-size: 1.2rem; }
+    .page-header p  { margin: 0; opacity: 0.65; font-size: 0.82rem; }
 
-    /* ── TOC ── */
-    .toc {
-      background: #fff;
-      border-left: 4px solid #4a90d9;
-      margin: 28px 40px 0;
-      padding: 16px 24px;
-      border-radius: 4px;
-      box-shadow: 0 1px 4px rgba(0,0,0,.08);
-    }
-    .toc h2 { margin: 0 0 10px; font-size: 1rem; color: #4a90d9; }
-    .toc ol { margin: 0; padding-left: 20px; line-height: 1.8; }
-    .toc a  { color: #4a90d9; text-decoration: none; }
-    .toc a:hover { text-decoration: underline; }
-
-    /* ── Card ── */
-    .card {
-      background: #fff;
-      border-radius: 6px;
-      box-shadow: 0 1px 4px rgba(0,0,0,.09);
-      margin: 24px 40px 0;
+    /* ── Body layout: sidebar + main ── */
+    .layout {
+      display: flex;
+      flex: 1;
       overflow: hidden;
+      height: calc(100vh - 60px);
     }
-    .card-header {
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 20%;
+      min-width: 180px;
+      max-width: 280px;
+      background: #fff;
+      border-right: 1px solid #dde2ea;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .sidebar-title {
+      background: #f0f2f5;
+      padding: 10px 14px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: #4a90d9;
+      border-bottom: 1px solid #dde2ea;
+      flex-shrink: 0;
+    }
+    .sidebar-search {
+      padding: 8px 10px;
+      border-bottom: 1px solid #edf0f4;
+      flex-shrink: 0;
+    }
+    .sidebar-search input {
+      width: 100%;
+      padding: 5px 8px;
+      border: 1px solid #dde2ea;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      outline: none;
+    }
+    .sidebar-search input:focus { border-color: #4a90d9; }
+    .sidebar-list {
+      overflow-y: auto;
+      flex: 1;
+    }
+    .sidebar-item {
+      padding: 9px 14px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      border-bottom: 1px solid #f0f2f5;
+      line-height: 1.35;
+      transition: background .12s;
+    }
+    .sidebar-item:hover { background: #f4f6f8; }
+    .sidebar-item.active {
+      background: #e8f0fb;
+      border-left: 3px solid #4a90d9;
+      font-weight: 600;
+      color: #1a5aa8;
+    }
+    .sidebar-item .sc-label { word-break: break-word; }
+    .sidebar-item .sc-badge {
+      display: inline-block;
+      background: #4a90d9;
+      color: #fff;
+      border-radius: 10px;
+      font-size: 0.65rem;
+      padding: 1px 7px;
+      margin-top: 3px;
+    }
+
+    /* ── Main content ── */
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 32px 60px;
+    }
+
+    /* ── Subcluster section (one at a time) ── */
+    .sc-section { display: none; }
+    .sc-section.visible { display: block; }
+
+    /* ── Section header ── */
+    .sc-header {
       background: #1a1a2e;
       color: #fff;
-      padding: 14px 22px;
-      cursor: pointer;
+      padding: 12px 20px;
+      border-radius: 6px 6px 0 0;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      user-select: none;
     }
-    .card-header h2 { margin: 0; font-size: 1rem; letter-spacing: .02em; }
-    .card-header .badge {
+    .sc-header h2 { margin: 0; font-size: 1rem; letter-spacing: .02em; }
+    .sc-header .badge {
       background: #4a90d9;
       border-radius: 12px;
       font-size: 0.75rem;
       padding: 2px 10px;
       margin-left: 10px;
     }
-    .card-header .chevron { transition: transform .2s; font-size: 1.1rem; }
-    .card-header.collapsed .chevron { transform: rotate(-90deg); }
-    .card-body { padding: 22px; }
-    .card-body.hidden { display: none; }
+    .sc-body {
+      background: #fff;
+      border: 1px solid #e4e8ee;
+      border-top: none;
+      border-radius: 0 0 6px 6px;
+      padding: 22px;
+    }
 
-    /* ── Stats table ── */
+    /* ── Stats grid ── */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
       margin-bottom: 22px;
     }
     .stat-box {
       background: #f8f9fb;
       border: 1px solid #e4e8ee;
       border-radius: 4px;
-      padding: 10px 14px;
+      padding: 9px 12px;
     }
-    .stat-box .label { font-size: 0.72rem; color: #888; text-transform: uppercase; letter-spacing: .05em; }
-    .stat-box .value { font-size: 1.15rem; font-weight: 600; margin-top: 2px; }
+    .stat-box .label { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: .05em; }
+    .stat-box .value { font-size: 1.05rem; font-weight: 600; margin-top: 2px; word-break: break-word; }
 
     /* ── Disease breakdown table ── */
     .breakdown-table {
@@ -146,25 +218,30 @@
       justify-content: space-between;
       align-items: center;
     }
-    .img-card img {
-      width: 100%;
-      display: block;
-    }
-    .download-link {
-      color: #4a90d9;
-      font-size: 0.7rem;
-      text-decoration: none;
-    }
+    .img-card img { width: 100%; display: block; }
+    .download-link { color: #4a90d9; font-size: 0.7rem; text-decoration: none; }
     .download-link:hover { text-decoration: underline; }
 
-    /* ── DE table wrapper ── */
-    .de-table-wrapper { overflow-x: auto; }
+    /* ── DE table ── */
+    .de-table-wrapper { overflow-x: auto; margin-top: 8px; }
     table.de-table { width: 100% !important; font-size: 0.82rem; }
     table.de-table thead th { background: #f0f2f5; }
 
+    /* ── Empty state ── */
+    .empty-state {
+      color: #aaa;
+      font-size: 0.9rem;
+      text-align: center;
+      padding: 60px 20px;
+    }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; }
+
     /* ── Responsive ── */
     @media (max-width: 900px) {
-      .card, .toc { margin-left: 16px; margin-right: 16px; }
+      .layout { flex-direction: column; height: auto; }
+      .sidebar { width: 100%; max-width: 100%; height: auto; border-right: none; border-bottom: 1px solid #dde2ea; }
+      .sidebar-list { max-height: 220px; }
+      .main-content { padding: 16px; }
       .img-grid.cols-3 { grid-template-columns: 1fr 1fr; }
     }
     @media (max-width: 600px) {
@@ -174,207 +251,266 @@
 </head>
 <body>
 
-<!-- ── Page header ──────────────────────────────────────────────────── -->
+<!-- ── Fixed top header ──────────────────────────────────────────────── -->
 <div class="page-header">
-  <h1>Disease Subcluster Report</h1>
-  <p>Tissue: <strong>{{ tissue }}</strong> &nbsp;·&nbsp; {{ subclusters | length }} subcluster(s) &nbsp;·&nbsp; Generated {{ generated_at }}</p>
+  <h1>Disease Subcluster Report — {{ tissue }}</h1>
+  <p>{{ subclusters | length }} subcluster(s) &nbsp;·&nbsp; Generated {{ generated_at }}</p>
 </div>
 
-<!-- ── Table of contents ────────────────────────────────────────────── -->
-<div class="toc">
-  <h2>Subclusters</h2>
-  <ol>
+<!-- ── Two-column layout ─────────────────────────────────────────────── -->
+<div class="layout">
+
+  <!-- Sidebar: subcluster list -->
+  <nav class="sidebar">
+    <div class="sidebar-title">Subclusters</div>
+    <div class="sidebar-search">
+      <input type="text" id="sidebar-filter" placeholder="Filter subclusters…" oninput="filterSidebar(this.value)" />
+    </div>
+    <div class="sidebar-list" id="sidebar-list">
+      {% for sc in subclusters %}
+      <div class="sidebar-item" data-target="{{ sc.anchor }}" onclick="showSubcluster('{{ sc.anchor }}', this)">
+        <div class="sc-label">{{ sc.label }}</div>
+        <span class="sc-badge">{{ sc.disease }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </nav>
+
+  <!-- Main panel -->
+  <div class="main-content" id="main-content">
+
+    <!-- Empty state shown before a subcluster is selected -->
+    <div id="empty-state" class="empty-state">
+      <div class="icon">🔬</div>
+      <div>Select a subcluster from the panel on the left to view its details.</div>
+    </div>
+
+    <!-- One section per subcluster, hidden by default -->
     {% for sc in subclusters %}
-    <li><a href="#{{ sc.anchor }}">{{ sc.label }}</a></li>
+    <div class="sc-section" id="sc-{{ sc.anchor }}">
+      <div class="sc-header">
+        <div>
+          <h2>{{ sc.label }} <span class="badge">{{ sc.disease }}</span></h2>
+        </div>
+      </div>
+      <div class="sc-body">
+
+        <!-- Stats -->
+        <div class="section-label">Summary statistics</div>
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="label">Total cells</div>
+            <div class="value">{{ sc.stats.n_total }}</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Disease cells</div>
+            <div class="value">{{ sc.stats.n_disease }}</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Healthy cells</div>
+            <div class="value">{{ sc.stats.n_healthy }}</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Fold enrichment</div>
+            <div class="value">{{ sc.stats.fold_enrichment }}</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">FDR p-value</div>
+            <div class="value">{{ sc.stats.fdr_pval }}</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Cell type</div>
+            <div class="value">{{ sc.stats.cell_type }}</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Disease (label)</div>
+            <div class="value">{{ sc.stats.disease }}</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Disease composition</div>
+            <div class="value" style="font-size:0.82rem;">{{ sc.stats.disease_composition }}</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Reference used</div>
+            <div class="value" style="font-size:0.82rem;">{{ sc.stats.reference_used }}</div>
+          </div>
+        </div>
+
+        <!-- Per-disease breakdown -->
+        {% if sc.disease_breakdown %}
+        <div class="section-label">Per-disease breakdown</div>
+        <table class="breakdown-table">
+          <thead>
+            <tr>
+              <th>Disease</th>
+              <th>Cells in subcluster</th>
+              <th>% of subcluster</th>
+              <th>Fold enrichment</th>
+              <th>p-value</th>
+              <th>FDR</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in sc.disease_breakdown %}
+            <tr>
+              <td>{{ row.disease }}</td>
+              <td>{{ row.n_cells }}</td>
+              <td>{{ row.pct }}</td>
+              <td>{{ row.fold }}</td>
+              <td>{{ row.pval }}</td>
+              <td>{{ row.fdr }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+
+        <!-- UMAP panels -->
+        <div class="section-label">UMAP embeddings</div>
+        <div class="img-grid cols-3">
+          {% if sc.umap_celltype_b64 %}
+          <div class="img-card">
+            <div class="img-title">
+              Cell type
+              <a class="download-link" href="data:image/png;base64,{{ sc.umap_celltype_b64 }}" download="{{ sc.anchor }}_umap_celltype.png">⬇ download</a>
+            </div>
+            <img src="data:image/png;base64,{{ sc.umap_celltype_b64 }}" alt="UMAP cell type" loading="lazy" />
+          </div>
+          {% endif %}
+          {% if sc.umap_disease_b64 %}
+          <div class="img-card">
+            <div class="img-title">
+              Disease condition
+              <a class="download-link" href="data:image/png;base64,{{ sc.umap_disease_b64 }}" download="{{ sc.anchor }}_umap_disease.png">⬇ download</a>
+            </div>
+            <img src="data:image/png;base64,{{ sc.umap_disease_b64 }}" alt="UMAP disease" loading="lazy" />
+          </div>
+          {% endif %}
+          {% if sc.umap_highlight_b64 %}
+          <div class="img-card">
+            <div class="img-title">
+              Subcluster highlight
+              <a class="download-link" href="data:image/png;base64,{{ sc.umap_highlight_b64 }}" download="{{ sc.anchor }}_umap_highlight.png">⬇ download</a>
+            </div>
+            <img src="data:image/png;base64,{{ sc.umap_highlight_b64 }}" alt="UMAP highlight" loading="lazy" />
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Volcano + Dotplot -->
+        <div class="section-label">Differential expression &amp; functional enrichment</div>
+        <div class="img-grid cols-2">
+          {% if sc.volcano_b64 %}
+          <div class="img-card">
+            <div class="img-title">
+              Volcano plot
+              <a class="download-link" href="data:image/png;base64,{{ sc.volcano_b64 }}" download="{{ sc.anchor }}_volcano.png">⬇ download</a>
+            </div>
+            <img src="data:image/png;base64,{{ sc.volcano_b64 }}" alt="Volcano plot" loading="lazy" />
+          </div>
+          {% endif %}
+          {% if sc.dotplot_b64 %}
+          <div class="img-card">
+            <div class="img-title">
+              Functional enrichment
+              <a class="download-link" href="data:image/png;base64,{{ sc.dotplot_b64 }}" download="{{ sc.anchor }}_enrichment.png">⬇ download</a>
+            </div>
+            <img src="data:image/png;base64,{{ sc.dotplot_b64 }}" alt="Enrichment dotplot" loading="lazy" />
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- DE table -->
+        {% if sc.de_records %}
+        <div class="section-label">Differential expression table</div>
+        <div class="de-table-wrapper">
+          <table id="de-{{ sc.anchor }}" class="de-table display" style="width:100%">
+            <thead>
+              <tr>
+                {% for col in sc.de_columns %}
+                <th>{{ col }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in sc.de_records %}
+              <tr>
+                {% for val in row %}
+                <td>{{ val }}</td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p style="color:#888; font-size:0.85rem;">No DE results available for this subcluster.</p>
+        {% endif %}
+
+      </div><!-- /sc-body -->
+    </div><!-- /sc-section -->
     {% endfor %}
-  </ol>
-</div>
 
-<!-- ── Subcluster cards ─────────────────────────────────────────────── -->
-{% for sc in subclusters %}
-<div class="card" id="{{ sc.anchor }}">
-  <div class="card-header" onclick="toggleCard(this)">
-    <div>
-      <h2>{{ sc.label }} <span class="badge">{{ sc.disease }}</span></h2>
-    </div>
-    <span class="chevron">▾</span>
-  </div>
-  <div class="card-body">
+  </div><!-- /main-content -->
+</div><!-- /layout -->
 
-    <!-- Stats -->
-    <div class="section-label">Summary statistics</div>
-    <div class="stats-grid">
-      <div class="stat-box">
-        <div class="label">Total cells</div>
-        <div class="value">{{ sc.stats.n_total }}</div>
-      </div>
-      <div class="stat-box">
-        <div class="label">Disease cells</div>
-        <div class="value">{{ sc.stats.n_disease }}</div>
-      </div>
-      <div class="stat-box">
-        <div class="label">Healthy cells</div>
-        <div class="value">{{ sc.stats.n_healthy }}</div>
-      </div>
-      <div class="stat-box">
-        <div class="label">Fold enrichment</div>
-        <div class="value">{{ sc.stats.fold_enrichment }}</div>
-      </div>
-      <div class="stat-box">
-        <div class="label">FDR p-value</div>
-        <div class="value">{{ sc.stats.fdr_pval }}</div>
-      </div>
-      <div class="stat-box">
-        <div class="label">Cell type</div>
-        <div class="value">{{ sc.stats.cell_type }}</div>
-      </div>
-      <div class="stat-box">
-        <div class="label">Disease (label)</div>
-        <div class="value">{{ sc.stats.disease }}</div>
-      </div>
-      <div class="stat-box">
-        <div class="label">Reference used</div>
-        <div class="value" style="font-size:0.85rem;">{{ sc.stats.reference_used }}</div>
-      </div>
-    </div>
-
-    <!-- Per-disease breakdown -->
-    {% if sc.disease_breakdown %}
-    <div class="section-label">Per-disease breakdown</div>
-    <table class="breakdown-table">
-      <thead>
-        <tr>
-          <th>Disease</th>
-          <th>Cells in subcluster</th>
-          <th>% of subcluster</th>
-          <th>Fold enrichment</th>
-          <th>p-value</th>
-          <th>FDR</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in sc.disease_breakdown %}
-        <tr>
-          <td>{{ row.disease }}</td>
-          <td>{{ row.n_cells }}</td>
-          <td>{{ row.pct }}</td>
-          <td>{{ row.fold }}</td>
-          <td>{{ row.pval }}</td>
-          <td>{{ row.fdr }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% endif %}
-
-    <!-- UMAP panels -->
-    <div class="section-label">UMAP embeddings</div>
-    <div class="img-grid cols-3">
-      {% if sc.umap_celltype_b64 %}
-      <div class="img-card">
-        <div class="img-title">
-          Cell type
-          <a class="download-link" href="data:image/png;base64,{{ sc.umap_celltype_b64 }}" download="{{ sc.anchor }}_umap_celltype.png">⬇ download</a>
-        </div>
-        <img src="data:image/png;base64,{{ sc.umap_celltype_b64 }}" alt="UMAP cell type" />
-      </div>
-      {% endif %}
-      {% if sc.umap_disease_b64 %}
-      <div class="img-card">
-        <div class="img-title">
-          Disease condition
-          <a class="download-link" href="data:image/png;base64,{{ sc.umap_disease_b64 }}" download="{{ sc.anchor }}_umap_disease.png">⬇ download</a>
-        </div>
-        <img src="data:image/png;base64,{{ sc.umap_disease_b64 }}" alt="UMAP disease" />
-      </div>
-      {% endif %}
-      {% if sc.umap_highlight_b64 %}
-      <div class="img-card">
-        <div class="img-title">
-          Subcluster highlight
-          <a class="download-link" href="data:image/png;base64,{{ sc.umap_highlight_b64 }}" download="{{ sc.anchor }}_umap_highlight.png">⬇ download</a>
-        </div>
-        <img src="data:image/png;base64,{{ sc.umap_highlight_b64 }}" alt="UMAP highlight" />
-      </div>
-      {% endif %}
-    </div>
-
-    <!-- Volcano + Dotplot -->
-    <div class="section-label">Differential expression &amp; functional enrichment</div>
-    <div class="img-grid cols-2">
-      {% if sc.volcano_b64 %}
-      <div class="img-card">
-        <div class="img-title">
-          Volcano plot
-          <a class="download-link" href="data:image/png;base64,{{ sc.volcano_b64 }}" download="{{ sc.anchor }}_volcano.png">⬇ download</a>
-        </div>
-        <img src="data:image/png;base64,{{ sc.volcano_b64 }}" alt="Volcano plot" />
-      </div>
-      {% endif %}
-      {% if sc.dotplot_b64 %}
-      <div class="img-card">
-        <div class="img-title">
-          Functional enrichment
-          <a class="download-link" href="data:image/png;base64,{{ sc.dotplot_b64 }}" download="{{ sc.anchor }}_enrichment.png">⬇ download</a>
-        </div>
-        <img src="data:image/png;base64,{{ sc.dotplot_b64 }}" alt="Enrichment dotplot" />
-      </div>
-      {% endif %}
-    </div>
-
-    <!-- DE table -->
-    {% if sc.de_records %}
-    <div class="section-label">Differential expression table</div>
-    <div class="de-table-wrapper">
-      <table id="de-{{ sc.anchor }}" class="de-table display" style="width:100%">
-        <thead>
-          <tr>
-            {% for col in sc.de_columns %}
-            <th>{{ col }}</th>
-            {% endfor %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in sc.de_records %}
-          <tr>
-            {% for val in row %}
-            <td>{{ val }}</td>
-            {% endfor %}
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p style="color:#888; font-size:0.85rem;">No DE results available for this subcluster.</p>
-    {% endif %}
-
-  </div><!-- /card-body -->
-</div><!-- /card -->
-{% endfor %}
-
-<!-- ── Scripts (DataTables inlined) ─────────────────────────────────── -->
+<!-- ── Scripts ───────────────────────────────────────────────────────── -->
 <script>
 {{ datatables_js }}
 </script>
 
 <script>
-  // Initialise all DE tables
-  document.querySelectorAll("table.de-table").forEach(function(tbl) {
-    new DataTable(tbl, {
-      pageLength: 25,
-      lengthMenu: [10, 25, 50, 100],
-      order: [],
-      scrollX: true,
-    });
-  });
+  var _dtInstances = {};   // cache DataTable instances to avoid re-init
 
-  // Toggle collapsible cards
-  function toggleCard(header) {
-    var body = header.nextElementSibling;
-    var collapsed = header.classList.toggle("collapsed");
-    body.classList.toggle("hidden", collapsed);
+  function showSubcluster(anchor, el) {
+    // Hide all sections
+    document.querySelectorAll(".sc-section").forEach(function(s) {
+      s.classList.remove("visible");
+    });
+    // Show selected
+    var section = document.getElementById("sc-" + anchor);
+    if (section) section.classList.add("visible");
+
+    // Mark active sidebar item
+    document.querySelectorAll(".sidebar-item").forEach(function(i) {
+      i.classList.remove("active");
+    });
+    if (el) el.classList.add("active");
+
+    // Hide empty state
+    document.getElementById("empty-state").style.display = "none";
+
+    // Scroll main content to top
+    document.getElementById("main-content").scrollTop = 0;
+
+    // Init DataTable lazily (only once per subcluster, and only when visible)
+    if (!_dtInstances[anchor]) {
+      var tbl = document.getElementById("de-" + anchor);
+      if (tbl) {
+        _dtInstances[anchor] = new DataTable(tbl, {
+          pageLength: 20,
+          lengthMenu: [10, 20, 50, 100],
+          order: [],
+          scrollX: true,
+          deferRender: true,
+        });
+      }
+    }
   }
+
+  function filterSidebar(query) {
+    var q = query.toLowerCase();
+    document.querySelectorAll(".sidebar-item").forEach(function(item) {
+      var text = item.textContent.toLowerCase();
+      item.style.display = text.includes(q) ? "" : "none";
+    });
+  }
+
+  // Auto-select first subcluster on load
+  (function() {
+    var first = document.querySelector(".sidebar-item");
+    if (first) first.click();
+  })();
 </script>
 
 </body>
