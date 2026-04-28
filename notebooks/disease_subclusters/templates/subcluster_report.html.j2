@@ -285,17 +285,9 @@
             <div class="label">Cell type</div>
             <div class="value">{{ sc.stats.cell_type }}</div>
           </div>
-          <div class="stat-box">
-            <div class="label">Disease (label)</div>
-            <div class="value">{{ sc.stats.disease }}</div>
-          </div>
-          <div class="stat-box">
+          <div class="stat-box" style="grid-column: 1 / -1;">
             <div class="label">Disease composition</div>
             <div class="value" style="font-size:0.82rem;">{{ sc.stats.disease_composition }}</div>
-          </div>
-          <div class="stat-box">
-            <div class="label">Reference used</div>
-            <div class="value" style="font-size:0.82rem;">{{ sc.stats.reference_used }}</div>
           </div>
         </div>
 
@@ -391,7 +383,10 @@
         <!-- DE table: DataTable is built lazily from embedded JSON the first
              time this subcluster is selected, so column widths are correct. -->
         {% if sc.de_json %}
-        <div class="section-label">Significant DE genes (padj &lt; threshold)</div>
+        <div class="section-label" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>Significant DE genes (padj &lt; threshold)</span>
+          {% if sc.de_csv_path %}<a class="download-link" href="{{ sc.de_csv_path }}" download="{{ sc.anchor }}_de.csv">⬇ download CSV</a>{% endif %}
+        </div>
         <div class="de-table-wrapper" id="de-wrapper-{{ sc.anchor }}">
           <p class="de-loading" id="de-loading-{{ sc.anchor }}">Loading table…</p>
           <table id="de-{{ sc.anchor }}" class="de-table display"
