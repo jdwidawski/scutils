@@ -5,9 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Disease Subcluster Report — {{ tissue }}</title>
 
-  <!-- DataTables CSS (CDN) -->
-  <link rel="stylesheet" href="https://cdn.datatables.net/2.0.7/css/dataTables.dataTables.min.css" />
-
   <style>
     /* ── Reset & base ── */
     *, *::before, *::after { box-sizing: border-box; }
@@ -191,8 +188,27 @@
 
     /* ── DE table ── */
     .de-table-wrapper { overflow-x: auto; margin-top: 8px; min-height: 80px; }
-    table.de-table { width: 100% !important; font-size: 0.82rem; }
-    table.de-table thead th { background: #f0f2f5; }
+    table.de-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    table.de-table thead th {
+      background: #f0f2f5; text-align: left; padding: 6px 10px;
+      border-bottom: 2px solid #dde2ea; cursor: pointer;
+      white-space: nowrap; user-select: none;
+    }
+    table.de-table thead th:hover { background: #e4e8ee; }
+    table.de-table tbody td { padding: 5px 10px; border-bottom: 1px solid #f0f2f5; font-size: 0.80rem; }
+    table.de-table tbody tr:last-child td { border-bottom: none; }
+    .sort-arrow { color: #4a90d9; margin-left: 4px; font-size: 0.7rem; }
+    .de-controls {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 8px; font-size: 0.8rem; color: #555;
+    }
+    .de-pager button {
+      background: #f0f2f5; border: 1px solid #dde2ea; border-radius: 3px;
+      padding: 3px 10px; cursor: pointer; font-size: 0.78rem;
+    }
+    .de-pager button:disabled { opacity: 0.4; cursor: default; }
+    .de-pager button:not(:disabled):hover { background: #e4e8ee; }
+    .de-pager .de-pageinfo { margin: 0 8px; }
     .de-loading { color: #aaa; font-size: 0.85rem; padding: 12px 0; }
 
     /* ── Empty state ── */
@@ -378,22 +394,27 @@
           {% endif %}
         </div>
 
-        <!-- DE table: DataTable is built lazily from embedded JSON the first
-             time this subcluster is selected, so column widths are correct. -->
+        <!-- DE table: built lazily from embedded JSON on first selection -->
         {% if sc.de_json %}
         <div class="section-label" style="display:flex; justify-content:space-between; align-items:center;">
           <span>Significant DE genes (padj &lt; threshold)</span>
           {% if sc.de_csv_path %}<a class="download-link" href="{{ sc.de_csv_path }}" download="{{ sc.anchor }}_de.csv">⬇ download CSV</a>{% endif %}
         </div>
-        <div class="de-table-wrapper" id="de-wrapper-{{ sc.anchor }}">
-          <p class="de-loading" id="de-loading-{{ sc.anchor }}">Loading table…</p>
-          <table id="de-{{ sc.anchor }}" class="de-table display"
-                 style="width:100%; display:none">
+        <div class="de-table-wrapper">
+          <p class="de-loading" id="de-loading-{{ sc.anchor }}">Loading…</p>
+          <table id="de-{{ sc.anchor }}" class="de-table" style="display:none">
             <thead><tr></tr></thead>
             <tbody></tbody>
           </table>
+          <div class="de-controls" id="de-controls-{{ sc.anchor }}" style="display:none">
+            <span id="de-info-{{ sc.anchor }}"></span>
+            <div class="de-pager" id="de-pager-{{ sc.anchor }}">
+              <button class="de-prev" onclick="_deTables['{{ sc.anchor }}'].changePage(-1)">‹ Prev</button>
+              <span class="de-pageinfo" id="de-pageinfo-{{ sc.anchor }}"></span>
+              <button class="de-next" onclick="_deTables['{{ sc.anchor }}'].changePage(1)">Next ›</button>
+            </div>
+          </div>
         </div>
-        <!-- Embedded DE data (orient="split": .columns + .data) -->
         <script type="application/json" id="de-data-{{ sc.anchor }}">{{ sc.de_json }}</script>
         {% else %}
         <p style="color:#888; font-size:0.85rem; margin-top:16px;">
@@ -408,82 +429,133 @@
   </div><!-- /main-content -->
 </div><!-- /layout -->
 
-<!-- ── DataTables JS (CDN) ──────────────────────────────────────────── -->
-<script src="https://cdn.datatables.net/2.0.7/js/dataTables.min.js"></script>
-
 <script>
-  var _dtInstances = {};
+  // ── Pure-JS DE table (no external dependencies, works from file://) ────────
+  var _deTables = {};
 
-  function showSubcluster(anchor, el) {
-    // Hide all, show selected
-    document.querySelectorAll(".sc-section").forEach(function(s) {
-      s.classList.remove("visible");
+  function _initDETable(anchor) {
+    if (_deTables[anchor]) return;
+    var dataEl = document.getElementById('de-data-' + anchor);
+    if (!dataEl) return;
+    var payload;
+    try { payload = JSON.parse(dataEl.textContent); } catch(e) { return; }
+    var cols = payload.columns || [], allRows = payload.data || [];
+    if (!cols.length) return;
+
+    var PER_PAGE = 20;
+    var lfcI = -1, pvalI = -1;
+    cols.forEach(function(c, i) {
+      if (c === 'log2FoldChange' || c === 'logfoldchanges') lfcI = i;
+      if (c === 'padj' || c === 'pvals_adj' || c === 'pvalue' || c === 'pvals') pvalI = i;
     });
-    var section = document.getElementById("sc-" + anchor);
-    if (section) section.classList.add("visible");
+    // Default sort: LFC descending (most upregulated first)
+    var state = {
+      sortCol: lfcI >= 0 ? lfcI : (pvalI >= 0 ? pvalI : -1),
+      sortDir: lfcI >= 0 ? -1 : 1,
+      page: 0
+    };
 
-    // Update sidebar highlight
-    document.querySelectorAll(".sidebar-item").forEach(function(i) {
-      i.classList.remove("active");
-    });
-    if (el) el.classList.add("active");
-
-    document.getElementById("empty-state").style.display = "none";
-    document.getElementById("main-content").scrollTop = 0;
-
-    // Initialise DataTable lazily — element is now visible so widths are correct
-    if (!_dtInstances[anchor]) {
-      var dataEl = document.getElementById("de-data-" + anchor);
-      if (!dataEl) return;
-
-      var payload;
-      try { payload = JSON.parse(dataEl.textContent); } catch(e) { return; }
-
-      var columns = payload.columns || [];
-      var rows    = payload.data    || [];
-      if (!columns.length) return;
-
-      var tbl = document.getElementById("de-" + anchor);
-      if (!tbl) return;
-
-      // Show table, hide loading placeholder
-      tbl.style.display = "";
-      var loading = document.getElementById("de-loading-" + anchor);
-      if (loading) loading.style.display = "none";
-
-      // Determine sort order: LFC descending (upregulated first), then pval ascending
-      var lfcI  = columns.findIndex(function(c) {
-        return c === "log2FoldChange" || c === "logfoldchanges";
-      });
-      var pvalI = columns.findIndex(function(c) {
-        return c === "padj" || c === "pvals_adj" || c === "pvalue" || c === "pvals";
-      });
-      var order = [];
-      if (lfcI  >= 0) order.push([lfcI,  "desc"]);
-      if (pvalI >= 0) order.push([pvalI, "asc"]);
-
-      _dtInstances[anchor] = new DataTable(tbl, {
-        data: rows,
-        columns: columns.map(function(c) { return { title: c }; }),
-        pageLength: 20,
-        lengthMenu: [10, 20, 50, 100],
-        order: order,
-        scrollX: true,
-        deferRender: true,
-      });
+    function cmp(a, b, dir) {
+      if (a === null || a === '' || a === undefined) return 1;
+      if (b === null || b === '' || b === undefined) return -1;
+      var an = parseFloat(a), bn = parseFloat(b);
+      if (!isNaN(an) && !isNaN(bn)) return dir * (an - bn);
+      return dir * String(a).localeCompare(String(b));
     }
+    function getSorted() {
+      if (state.sortCol < 0) return allRows;
+      var sc = state.sortCol, sd = state.sortDir;
+      return allRows.slice().sort(function(a, b) { return cmp(a[sc], b[sc], sd); });
+    }
+    function esc(v) {
+      return (v === null || v === undefined ? '' : String(v))
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function render() {
+      var rows = getSorted();
+      var total = rows.length;
+      var maxPage = Math.max(0, Math.ceil(total / PER_PAGE) - 1);
+      if (state.page > maxPage) state.page = maxPage;
+      var slice = rows.slice(state.page * PER_PAGE, (state.page + 1) * PER_PAGE);
+
+      var tbl = document.getElementById('de-' + anchor);
+      // Header
+      tbl.querySelector('thead tr').innerHTML = cols.map(function(c, i) {
+        var arrow = state.sortCol === i ? (state.sortDir > 0 ? ' ▲' : ' ▼') : ' ⇅';
+        return '<th onclick="_deTables[\''+anchor+'\'].sortBy('+i+')">' +
+               esc(c) + '<span class="sort-arrow">'+arrow+'</span></th>';
+      }).join('');
+      // Body
+      tbl.querySelector('tbody').innerHTML = slice.map(function(r) {
+        return '<tr>' + r.map(function(v) { return '<td>' + esc(v) + '</td>'; }).join('') + '</tr>';
+      }).join('');
+
+      // Info
+      var infoEl = document.getElementById('de-info-' + anchor);
+      if (infoEl) infoEl.textContent = total ?
+        'Showing ' + (state.page * PER_PAGE + 1) + '–' +
+        Math.min((state.page + 1) * PER_PAGE, total) + ' of ' + total + ' genes' : '0 genes';
+      var pinfoEl = document.getElementById('de-pageinfo-' + anchor);
+      if (pinfoEl) pinfoEl.textContent = 'Page ' + (state.page + 1) + ' / ' + (maxPage + 1);
+      // Pager buttons
+      var pager = document.getElementById('de-pager-' + anchor);
+      if (pager) {
+        pager.querySelector('.de-prev').disabled = (state.page === 0);
+        pager.querySelector('.de-next').disabled = (state.page >= maxPage);
+      }
+
+      tbl.style.display = '';
+      document.getElementById('de-controls-' + anchor).style.display = '';
+      var loading = document.getElementById('de-loading-' + anchor);
+      if (loading) loading.style.display = 'none';
+    }
+
+    _deTables[anchor] = {
+      sortBy: function(ci) {
+        if (state.sortCol === ci) { state.sortDir *= -1; }
+        else { state.sortCol = ci; state.sortDir = 1; }
+        state.page = 0; render();
+      },
+      changePage: function(delta) {
+        var maxPage = Math.max(0, Math.ceil(allRows.length / PER_PAGE) - 1);
+        state.page = Math.max(0, Math.min(state.page + delta, maxPage));
+        render();
+      }
+    };
+    render();
+  }
+
+  // ── Navigation ─────────────────────────────────────────────────────────
+  function showSubcluster(anchor, el) {
+    document.querySelectorAll('.sc-section').forEach(function(s) {
+      s.classList.remove('visible');
+    });
+    var section = document.getElementById('sc-' + anchor);
+    if (section) section.classList.add('visible');
+
+    document.querySelectorAll('.sidebar-item').forEach(function(i) {
+      i.classList.remove('active');
+    });
+    if (el) el.classList.add('active');
+
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('main-content').scrollTop = 0;
+
+    // Initialise DE table lazily (element is visible so layout is correct)
+    _initDETable(anchor);
   }
 
   function filterSidebar(query) {
     var q = query.toLowerCase();
-    document.querySelectorAll(".sidebar-item").forEach(function(item) {
-      item.style.display = item.textContent.toLowerCase().includes(q) ? "" : "none";
+    document.querySelectorAll('.sidebar-item').forEach(function(item) {
+      item.style.display = item.textContent.toLowerCase().includes(q) ? '' : 'none';
     });
   }
 
   // Auto-select first subcluster
   (function() {
-    var first = document.querySelector(".sidebar-item");
+    var first = document.querySelector('.sidebar-item');
     if (first) first.click();
   })();
 </script>
