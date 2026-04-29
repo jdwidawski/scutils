@@ -341,34 +341,31 @@
         <!-- UMAP panels — images are separate files in img/ -->
         <div class="section-label">UMAP embeddings</div>
         <div class="img-grid cols-3">
-          {% if sc.umap_celltype_path %}
+          {% if sc.umap_celltype_b64 %}
           <div class="img-card">
             <div class="img-title">
               Cell type
-              <a class="download-link" href="{{ sc.umap_celltype_path }}"
-                 download="{{ sc.anchor }}_umap_celltype.png">⬇ download</a>
+              {% if sc.umap_celltype_path %}<a class="download-link" href="{{ sc.umap_celltype_path }}" download="{{ sc.anchor }}_umap_celltype.png">⬇ download</a>{% endif %}
             </div>
-            <img src="{{ sc.umap_celltype_path }}" alt="UMAP cell type" loading="lazy" />
+            <img src="data:image/png;base64,{{ sc.umap_celltype_b64 }}" alt="UMAP cell type" />
           </div>
           {% endif %}
-          {% if sc.umap_disease_path %}
+          {% if sc.umap_disease_b64 %}
           <div class="img-card">
             <div class="img-title">
               Disease condition
-              <a class="download-link" href="{{ sc.umap_disease_path }}"
-                 download="{{ sc.anchor }}_umap_disease.png">⬇ download</a>
+              {% if sc.umap_disease_path %}<a class="download-link" href="{{ sc.umap_disease_path }}" download="{{ sc.anchor }}_umap_disease.png">⬇ download</a>{% endif %}
             </div>
-            <img src="{{ sc.umap_disease_path }}" alt="UMAP disease" loading="lazy" />
+            <img src="data:image/png;base64,{{ sc.umap_disease_b64 }}" alt="UMAP disease" />
           </div>
           {% endif %}
-          {% if sc.umap_highlight_path %}
+          {% if sc.umap_highlight_b64 %}
           <div class="img-card">
             <div class="img-title">
               Subcluster highlight
-              <a class="download-link" href="{{ sc.umap_highlight_path }}"
-                 download="{{ sc.anchor }}_umap_highlight.png">⬇ download</a>
+              {% if sc.umap_highlight_path %}<a class="download-link" href="{{ sc.umap_highlight_path }}" download="{{ sc.anchor }}_umap_highlight.png">⬇ download</a>{% endif %}
             </div>
-            <img src="{{ sc.umap_highlight_path }}" alt="UMAP highlight" loading="lazy" />
+            <img src="data:image/png;base64,{{ sc.umap_highlight_b64 }}" alt="UMAP highlight" />
           </div>
           {% endif %}
         </div>
@@ -376,24 +373,22 @@
         <!-- Volcano + Dotplot -->
         <div class="section-label">Differential expression &amp; functional enrichment</div>
         <div class="img-grid cols-2">
-          {% if sc.volcano_path %}
+          {% if sc.volcano_b64 %}
           <div class="img-card">
             <div class="img-title">
               Volcano plot
-              <a class="download-link" href="{{ sc.volcano_path }}"
-                 download="{{ sc.anchor }}_volcano.png">⬇ download</a>
+              {% if sc.volcano_path %}<a class="download-link" href="{{ sc.volcano_path }}" download="{{ sc.anchor }}_volcano.png">⬇ download</a>{% endif %}
             </div>
-            <img src="{{ sc.volcano_path }}" alt="Volcano plot" loading="lazy" />
+            <img src="data:image/png;base64,{{ sc.volcano_b64 }}" alt="Volcano plot" />
           </div>
           {% endif %}
-          {% if sc.dotplot_path %}
+          {% if sc.dotplot_b64 %}
           <div class="img-card">
             <div class="img-title">
               Functional enrichment
-              <a class="download-link" href="{{ sc.dotplot_path }}"
-                 download="{{ sc.anchor }}_enrichment.png">⬇ download</a>
+              {% if sc.dotplot_path %}<a class="download-link" href="{{ sc.dotplot_path }}" download="{{ sc.anchor }}_enrichment.png">⬇ download</a>{% endif %}
             </div>
-            <img src="{{ sc.dotplot_path }}" alt="Enrichment dotplot" loading="lazy" />
+            <img src="data:image/png;base64,{{ sc.dotplot_b64 }}" alt="Enrichment dotplot" />
           </div>
           {% endif %}
         </div>
