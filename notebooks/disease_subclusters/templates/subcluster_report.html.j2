@@ -345,7 +345,7 @@
           <div class="img-card">
             <div class="img-title">
               Cell type
-              {% if sc.umap_celltype_path %}<a class="download-link" href="{{ sc.umap_celltype_path }}" download="{{ sc.anchor }}_umap_celltype.png">⬇ download</a>{% endif %}
+              {% if sc.umap_celltype_b64 %}<a class="download-link" href="data:image/png;base64,{{ sc.umap_celltype_b64 }}" download="{{ sc.anchor }}_umap_celltype.png">⬇ download</a>{% endif %}
             </div>
             <img src="data:image/png;base64,{{ sc.umap_celltype_b64 }}" alt="UMAP cell type" />
           </div>
@@ -354,7 +354,7 @@
           <div class="img-card">
             <div class="img-title">
               Disease condition
-              {% if sc.umap_disease_path %}<a class="download-link" href="{{ sc.umap_disease_path }}" download="{{ sc.anchor }}_umap_disease.png">⬇ download</a>{% endif %}
+              {% if sc.umap_disease_b64 %}<a class="download-link" href="data:image/png;base64,{{ sc.umap_disease_b64 }}" download="{{ sc.anchor }}_umap_disease.png">⬇ download</a>{% endif %}
             </div>
             <img src="data:image/png;base64,{{ sc.umap_disease_b64 }}" alt="UMAP disease" />
           </div>
@@ -363,7 +363,7 @@
           <div class="img-card">
             <div class="img-title">
               Subcluster highlight
-              {% if sc.umap_highlight_path %}<a class="download-link" href="{{ sc.umap_highlight_path }}" download="{{ sc.anchor }}_umap_highlight.png">⬇ download</a>{% endif %}
+              {% if sc.umap_highlight_b64 %}<a class="download-link" href="data:image/png;base64,{{ sc.umap_highlight_b64 }}" download="{{ sc.anchor }}_umap_highlight.png">⬇ download</a>{% endif %}
             </div>
             <img src="data:image/png;base64,{{ sc.umap_highlight_b64 }}" alt="UMAP highlight" />
           </div>
@@ -377,7 +377,7 @@
           <div class="img-card">
             <div class="img-title">
               Volcano plot
-              {% if sc.volcano_path %}<a class="download-link" href="{{ sc.volcano_path }}" download="{{ sc.anchor }}_volcano.png">⬇ download</a>{% endif %}
+              {% if sc.volcano_b64 %}<a class="download-link" href="data:image/png;base64,{{ sc.volcano_b64 }}" download="{{ sc.anchor }}_volcano.png">⬇ download</a>{% endif %}
             </div>
             <img src="data:image/png;base64,{{ sc.volcano_b64 }}" alt="Volcano plot" />
           </div>
@@ -386,7 +386,7 @@
           <div class="img-card">
             <div class="img-title">
               Functional enrichment
-              {% if sc.dotplot_path %}<a class="download-link" href="{{ sc.dotplot_path }}" download="{{ sc.anchor }}_enrichment.png">⬇ download</a>{% endif %}
+              {% if sc.dotplot_b64 %}<a class="download-link" href="data:image/png;base64,{{ sc.dotplot_b64 }}" download="{{ sc.anchor }}_enrichment.png">⬇ download</a>{% endif %}
             </div>
             <img src="data:image/png;base64,{{ sc.dotplot_b64 }}" alt="Enrichment dotplot" />
           </div>
@@ -397,7 +397,7 @@
         {% if sc.de_json %}
         <div class="section-label" style="display:flex; justify-content:space-between; align-items:center;">
           <span>Significant DE genes (padj &lt; threshold)</span>
-          {% if sc.de_csv_path %}<a class="download-link" href="{{ sc.de_csv_path }}" download="{{ sc.anchor }}_de.csv">⬇ download CSV</a>{% endif %}
+          {% if sc.de_csv_b64 %}<a class="download-link" href="data:text/csv;base64,{{ sc.de_csv_b64 }}" download="{{ sc.anchor }}_de.csv">⬇ download CSV</a>{% endif %}
         </div>
         <div class="de-table-wrapper">
           <p class="de-loading" id="de-loading-{{ sc.anchor }}">Loading…</p>
