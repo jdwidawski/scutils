@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Disease Subcluster Report — Combined</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+           background: #f7f8fa; color: #1a1a2e; font-size: 14px; }
+
+    /* ── Layout ── */
+    .layout { display: flex; height: 100vh; overflow: hidden; }
+    .sidebar {
+      width: 280px; min-width: 220px; max-width: 340px;
+      background: #1a1a2e; color: #e0e0f0;
+      display: flex; flex-direction: column;
+      overflow: hidden; flex-shrink: 0;
+    }
+    .main-content { flex: 1; overflow-y: auto; padding: 32px 40px; }
+
+    /* ── Sidebar header ── */
+    .sidebar-header {
+      padding: 18px 16px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      flex-shrink: 0;
+    }
+    .sidebar-header h1 { font-size: 1rem; font-weight: 700; color: #fff; }
+    .sidebar-header p { font-size: 0.75rem; color: #8892b0; margin-top: 4px; }
+    .sidebar-search {
+      width: 100%; margin-top: 10px; padding: 7px 10px;
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px; color: #e0e0f0; font-size: 0.82rem; outline: none;
+    }
+    .sidebar-search::placeholder { color: #4a5568; }
+    .sidebar-body { flex: 1; overflow-y: auto; padding: 8px 0; }
+
+    /* ── Tissue group + items ── */
+    .tissue-group { margin-bottom: 4px; }
+    .tissue-heading {
+      display: flex; align-items: center; gap: 6px;
+      padding: 7px 14px 7px 12px;
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #4a90d9;
+      cursor: pointer; user-select: none;
+      border-left: 3px solid transparent;
+    }
+    .tissue-heading:hover { background: rgba(255,255,255,0.05); }
+    .tissue-heading .caret { font-size: 0.65rem; transition: transform 0.15s; }
+    .tissue-heading.collapsed .caret { transform: rotate(-90deg); }
+    .tissue-items { overflow: hidden; }
+    .tissue-heading.collapsed + .tissue-items { display: none; }
+
+    .sidebar-item {
+      display: block; width: 100%;
+      padding: 6px 14px 6px 26px;
+      font-size: 0.82rem; color: #a0aec0;
+      cursor: pointer; border: none; background: none; text-align: left;
+      border-left: 3px solid transparent; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .sidebar-item:hover { background: rgba(255,255,255,0.05); color: #e0e0f0; }
+    .sidebar-item.active {
+      background: rgba(74,144,217,0.15);
+      color: #fff;
+      border-left-color: #4a90d9;
+    }
+
+    /* ── Landing page ── */
+    #landing {
+      display: block;
+    }
+    .landing-hero {
+      background: linear-gradient(135deg, #1a1a2e 0%, #2d3561 100%);
+      border-radius: 14px; padding: 40px 44px; color: #fff; margin-bottom: 32px;
+    }
+    .landing-hero h2 { font-size: 1.7rem; font-weight: 700; }
+    .landing-hero p  { margin-top: 10px; color: #8892b0; font-size: 0.95rem; line-height: 1.6; }
+    .meta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+    .meta-card {
+      background: #fff; border-radius: 10px;
+      padding: 18px 20px; border: 1px solid #e2e8f0;
+    }
+    .meta-card .label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+                        letter-spacing: 0.06em; color: #718096; }
+    .meta-card .value { font-size: 1.4rem; font-weight: 700; color: #1a1a2e; margin-top: 4px; }
+    .meta-card .sub   { font-size: 0.8rem; color: #718096; margin-top: 2px; }
+
+    .tissue-table-wrap { overflow-x: auto; margin-top: 24px; }
+    .tissue-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .tissue-table th { background: #1a1a2e; color: #fff; padding: 9px 14px;
+                       text-align: left; font-size: 0.78rem; letter-spacing: 0.04em; }
+    .tissue-table td { padding: 8px 14px; border-bottom: 1px solid #e2e8f0; }
+    .tissue-table tr:hover td { background: #f0f5ff; }
+    .tissue-btn {
+      display: inline-block; padding: 3px 10px; border-radius: 12px;
+      background: #e8f0fe; color: #4a90d9; font-size: 0.78rem;
+      cursor: pointer; border: 1px solid #c5d8fb;
+    }
+    .tissue-btn:hover { background: #4a90d9; color: #fff; }
+
+    /* ── Subcluster section ── */
+    .sc-section { display: none; }
+    .sc-section.visible { display: block; }
+
+    .sc-header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #2d3561 100%);
+      border-radius: 12px; padding: 22px 28px; margin-bottom: 24px;
+      display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    }
+    .sc-header h2 { font-size: 1.1rem; font-weight: 700; color: #fff; word-break: break-all; }
+    .sc-tissue-badge {
+      background: rgba(74,144,217,0.2); color: #4a90d9;
+      border: 1px solid rgba(74,144,217,0.4);
+      border-radius: 20px; padding: 4px 14px; font-size: 0.8rem; white-space: nowrap;
+    }
+    .sc-body { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 28px; }
+
+    /* ── Stats grid ── */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat-card { background: #f7f8fa; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; }
+    .stat-card .s-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+                          letter-spacing: 0.05em; color: #718096; }
+    .stat-card .s-value { font-size: 1.1rem; font-weight: 700; color: #1a1a2e; margin-top: 3px; }
+
+    /* ── Images ── */
+    .section-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+                     letter-spacing: 0.08em; color: #718096; margin: 20px 0 10px; }
+    .img-grid { display: grid; gap: 14px; }
+    .img-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+    .img-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+    @media (max-width: 900px) { .img-grid.cols-3, .img-grid.cols-2 { grid-template-columns: 1fr; } }
+    .img-card { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #fafbfc; }
+    .img-title { padding: 8px 12px; font-size: 0.78rem; font-weight: 600; color: #4a5568;
+                 display: flex; justify-content: space-between; align-items: center;
+                 border-bottom: 1px solid #e2e8f0; }
+    .img-card img { width: 100%; height: auto; display: block; }
+    .download-link { font-size: 0.72rem; color: #4a90d9; text-decoration: none; white-space: nowrap; }
+    .download-link:hover { text-decoration: underline; }
+
+    /* ── DE table ── */
+    .de-search { width: 100%; max-width: 320px; margin: 10px 0 4px; padding: 5px 10px;
+                 border: 1px solid #d0d5dd; border-radius: 6px; font-size: 0.85rem; }
+    .de-table-wrapper { overflow-x: auto; margin-top: 8px; min-height: 80px; }
+    .de-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .de-table th { background: #1a1a2e; color: #fff; padding: 7px 10px; text-align: left;
+                   cursor: pointer; white-space: nowrap; user-select: none; font-size: 0.75rem; }
+    .de-table th:hover { background: #2d3561; }
+    .de-table td { padding: 5px 10px; border-bottom: 1px solid #f0f0f0; }
+    .de-table tr:nth-child(even) td { background: #fafafa; }
+    .de-table tr:hover td { background: #f0f5ff; }
+    .sort-arrow { color: #4a90d9; margin-left: 4px; }
+    .de-controls { display: flex; justify-content: space-between; align-items: center;
+                   margin-top: 8px; flex-wrap: wrap; gap: 8px; font-size: 0.8rem; color: #718096; }
+    .de-pager { display: flex; align-items: center; gap: 8px; }
+    .de-pager button { padding: 3px 10px; border: 1px solid #e2e8f0; border-radius: 4px;
+                       background: #fff; cursor: pointer; font-size: 0.78rem; }
+    .de-pager button:disabled { opacity: 0.4; cursor: default; }
+    .de-loading { color: #aaa; font-style: italic; font-size: 0.85rem; padding: 12px 0; }
+
+    /* ── Breakdown table ── */
+    .breakdown-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-bottom: 16px; }
+    .breakdown-table th { background: #f0f4ff; color: #2d3561; padding: 6px 10px;
+                          text-align: left; font-size: 0.72rem; letter-spacing: 0.04em; }
+    .breakdown-table td { padding: 5px 10px; border-bottom: 1px solid #f0f0f0; }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <h1>Disease Subclusters</h1>
+      <p>Combined report · {{ generated_at }}</p>
+      <input class="sidebar-search" type="search" placeholder="Filter…" oninput="filterSidebar(this.value)">
+    </div>
+    <div class="sidebar-body" id="sidebar-body">
+      <!-- Landing -->
+      <button class="sidebar-item active" id="nav-landing" onclick="showLanding(this)">
+        🏠 Overview
+      </button>
+
+      {% for tissue, subclusters in tissues.items() %}
+      <div class="tissue-group" data-tissue="{{ tissue }}">
+        <div class="tissue-heading" onclick="toggleTissue(this)">
+          <span class="caret">▾</span>
+          {{ tissue }} ({{ subclusters | length }})
+        </div>
+        <div class="tissue-items">
+          {% for sc in subclusters %}
+          <button class="sidebar-item"
+                  onclick="showSubcluster('{{ tissue }}__{{ sc.anchor }}', this)"
+                  data-label="{{ sc.label }}"
+                  data-tissue="{{ tissue }}">
+            {{ sc.label }}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </nav>
+
+  <!-- ── Main content ── -->
+  <div class="main-content" id="main-content">
+
+    <!-- Landing page -->
+    <div id="landing">
+      <div class="landing-hero">
+        <h2>Disease Subcluster Report — Combined</h2>
+        <p>
+          This report aggregates subcluster cards from
+          <strong>{{ tissues | length }}</strong> tissue(s):
+          {{ tissues.keys() | join(", ") }}.
+          Generated: {{ generated_at }}.
+        </p>
+      </div>
+
+      <div class="meta-grid">
+        <div class="meta-card">
+          <div class="label">Tissues</div>
+          <div class="value">{{ tissues | length }}</div>
+          <div class="sub">{{ tissues.keys() | join(", ") }}</div>
+        </div>
+        <div class="meta-card">
+          <div class="label">Total subclusters</div>
+          <div class="value">{{ tissues.values() | map(attribute='__len__') | sum if False else total_subclusters }}</div>
+          <div class="sub">across all tissues</div>
+        </div>
+      </div>
+
+      <div class="tissue-table-wrap">
+        <table class="tissue-table">
+          <thead><tr>
+            <th>Tissue</th>
+            <th>Subclusters</th>
+            <th>Labels</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+          {% for tissue, subclusters in tissues.items() %}
+          <tr>
+            <td><strong>{{ tissue }}</strong></td>
+            <td>{{ subclusters | length }}</td>
+            <td style="max-width:420px; white-space:normal; font-size:0.8rem; color:#718096;">
+              {{ subclusters | map(attribute='label') | join(", ") }}
+            </td>
+            <td>
+              {% if subclusters %}
+              <span class="tissue-btn"
+                    onclick="showSubcluster('{{ tissue }}__{{ subclusters[0].anchor }}',
+                             document.querySelector('[onclick*=\'{{ tissue }}__{{ subclusters[0].anchor }}\']'))">
+                View first
+              </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Per-tissue / per-subcluster sections -->
+    {% for tissue, subclusters in tissues.items() %}
+    {% for sc in subclusters %}
+    <div class="sc-section" id="sc-{{ tissue }}__{{ sc.anchor }}">
+
+      <div class="sc-header">
+        <div>
+          <h2>{{ sc.label }}</h2>
+        </div>
+        <span class="sc-tissue-badge">{{ tissue }}</span>
+      </div>
+
+      <div class="sc-body">
+
+        <!-- Stats -->
+        <div class="stats-grid">
+          {% for key, label in [
+            ("n_total",          "Total cells"),
+            ("n_disease",        "Disease cells"),
+            ("n_healthy",        "Healthy cells"),
+            ("fold_enrichment",  "Fold enrichment"),
+            ("fdr_pval",         "FDR p-value"),
+            ("cell_type",        "Cell type"),
+            ("de_reference",     "DE reference"),
+          ] %}
+          {% if sc.stats.get(key) is not none %}
+          <div class="stat-card">
+            <div class="s-label">{{ label }}</div>
+            <div class="s-value">{{ sc.stats.get(key, "—") }}</div>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+
+        {% if sc.disease_breakdown %}
+        <div class="section-label">Disease breakdown</div>
+        <table class="breakdown-table">
+          <thead><tr><th>Disease</th><th>Cells</th><th>%</th><th>Fold</th><th>FDR</th></tr></thead>
+          <tbody>
+          {% for r in sc.disease_breakdown %}
+          <tr>
+            <td>{{ r.disease }}</td>
+            <td>{{ r.n_cells }}</td>
+            <td>{{ r.pct }}</td>
+            <td>{{ r.fold }}</td>
+            <td>{{ r.fdr }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+
+        <!-- UMAP panels -->
+        <div class="section-label">UMAP embeddings</div>
+        <div class="img-grid cols-3">
+          {% if sc.umap_celltype_path %}
+          <div class="img-card">
+            <div class="img-title">Cell type
+              <a class="download-link" href="{{ sc.umap_celltype_path }}" download="{{ sc.anchor }}_umap_celltype.png">⬇ download</a>
+            </div>
+            <img src="{{ sc.umap_celltype_path }}" alt="UMAP cell type" />
+          </div>
+          {% endif %}
+          {% if sc.umap_disease_path %}
+          <div class="img-card">
+            <div class="img-title">Disease condition
+              <a class="download-link" href="{{ sc.umap_disease_path }}" download="{{ sc.anchor }}_umap_disease.png">⬇ download</a>
+            </div>
+            <img src="{{ sc.umap_disease_path }}" alt="UMAP disease" />
+          </div>
+          {% endif %}
+          {% if sc.umap_highlight_path %}
+          <div class="img-card">
+            <div class="img-title">Subcluster highlight
+              <a class="download-link" href="{{ sc.umap_highlight_path }}" download="{{ sc.anchor }}_umap_highlight.png">⬇ download</a>
+            </div>
+            <img src="{{ sc.umap_highlight_path }}" alt="UMAP highlight" />
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Volcano + Dotplot -->
+        <div class="section-label">Differential expression &amp; functional enrichment</div>
+        <div class="img-grid cols-2">
+          {% if sc.volcano_path %}
+          <div class="img-card">
+            <div class="img-title">Volcano plot
+              <a class="download-link" href="{{ sc.volcano_path }}" download="{{ sc.anchor }}_volcano.png">⬇ download</a>
+            </div>
+            <img src="{{ sc.volcano_path }}" alt="Volcano plot" />
+          </div>
+          {% endif %}
+          {% if sc.dotplot_path %}
+          <div class="img-card">
+            <div class="img-title">Functional enrichment
+              <a class="download-link" href="{{ sc.dotplot_path }}" download="{{ sc.anchor }}_enrichment.png">⬇ download</a>
+            </div>
+            <img src="{{ sc.dotplot_path }}" alt="Enrichment dotplot" />
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- DE table -->
+        {% if sc.de_json %}
+        <div class="section-label" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>Significant DE genes (padj &lt; threshold)</span>
+          {% if sc.de_csv_path %}<a class="download-link" href="{{ sc.de_csv_path }}" download="{{ sc.anchor }}_de.csv">⬇ download CSV</a>{% endif %}
+        </div>
+        <input type="search" class="de-search" placeholder="Search gene…" oninput="_searchDE('{{ tissue }}__{{ sc.anchor }}', this.value)">
+        <div class="de-table-wrapper">
+          <p class="de-loading" id="de-loading-{{ tissue }}__{{ sc.anchor }}">Loading…</p>
+          <table id="de-{{ tissue }}__{{ sc.anchor }}" class="de-table" style="display:none">
+            <thead><tr></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div class="de-controls" id="de-controls-{{ tissue }}__{{ sc.anchor }}" style="display:none">
+            <span id="de-info-{{ tissue }}__{{ sc.anchor }}"></span>
+            <div class="de-pager" id="de-pager-{{ tissue }}__{{ sc.anchor }}">
+              <button class="de-prev" onclick="_deTables['{{ tissue }}__{{ sc.anchor }}'].changePage(-1)">‹ Prev</button>
+              <span class="de-pageinfo" id="de-pageinfo-{{ tissue }}__{{ sc.anchor }}"></span>
+              <button class="de-next" onclick="_deTables['{{ tissue }}__{{ sc.anchor }}'].changePage(1)">Next ›</button>
+            </div>
+          </div>
+        </div>
+        <script type="application/json" id="de-data-{{ tissue }}__{{ sc.anchor }}">{{ sc.de_json }}</script>
+        {% else %}
+        <p style="color:#888; font-size:0.85rem; margin-top:16px;">No significant DE results available.</p>
+        {% endif %}
+
+      </div><!-- /sc-body -->
+    </div><!-- /sc-section -->
+    {% endfor %}
+    {% endfor %}
+
+  </div><!-- /main-content -->
+</div><!-- /layout -->
+
+<script>
+  var _deTables = {};
+
+  function _initDETable(anchor) {
+    if (_deTables[anchor]) return;
+    var dataEl = document.getElementById('de-data-' + anchor);
+    if (!dataEl) return;
+    var payload;
+    try { payload = JSON.parse(dataEl.textContent); } catch(e) { return; }
+    var cols = payload.columns || [], allRows = payload.data || [];
+    if (!cols.length) return;
+
+    var PER_PAGE = 20;
+    var lfcI = -1, pvalI = -1;
+    cols.forEach(function(c, i) {
+      if (c === 'log2FoldChange' || c === 'logfoldchanges') lfcI = i;
+      if (c === 'padj' || c === 'pvals_adj' || c === 'pvalue' || c === 'pvals') pvalI = i;
+    });
+
+    var state = {
+      sortCol: lfcI >= 0 ? lfcI : (pvalI >= 0 ? pvalI : -1),
+      sortDir: lfcI >= 0 ? -1 : 1,
+      page: 0,
+      query: ''
+    };
+
+    function cmp(a, b, dir) {
+      if (a === null || a === '' || a === undefined) return 1;
+      if (b === null || b === '' || b === undefined) return -1;
+      var an = parseFloat(a), bn = parseFloat(b);
+      if (!isNaN(an) && !isNaN(bn)) return dir * (an - bn);
+      return dir * String(a).localeCompare(String(b));
+    }
+    function getFiltered() {
+      if (!state.query) return allRows;
+      var q = state.query.toLowerCase();
+      return allRows.filter(function(r) {
+        return r.some(function(v) { return String(v == null ? '' : v).toLowerCase().indexOf(q) >= 0; });
+      });
+    }
+    function getSorted() {
+      var filtered = getFiltered();
+      if (state.sortCol < 0) return filtered;
+      var sc = state.sortCol, sd = state.sortDir;
+      return filtered.slice().sort(function(a, b) { return cmp(a[sc], b[sc], sd); });
+    }
+    function esc(v) {
+      return (v === null || v === undefined ? '' : String(v))
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function render() {
+      var rows = getSorted();
+      var total = rows.length;
+      var maxPage = Math.max(0, Math.ceil(total / PER_PAGE) - 1);
+      if (state.page > maxPage) state.page = maxPage;
+      var slice = rows.slice(state.page * PER_PAGE, (state.page + 1) * PER_PAGE);
+
+      var tbl = document.getElementById('de-' + anchor);
+      tbl.querySelector('thead tr').innerHTML = cols.map(function(c, i) {
+        var arrow = state.sortCol === i ? (state.sortDir > 0 ? ' ▲' : ' ▼') : ' ⇅';
+        return '<th onclick="_deTables[\''+anchor+'\'].sortBy('+i+')">' +
+               esc(c) + '<span class="sort-arrow">'+arrow+'</span></th>';
+      }).join('');
+      tbl.querySelector('tbody').innerHTML = slice.map(function(r) {
+        return '<tr>' + r.map(function(v) { return '<td>' + esc(v) + '</td>'; }).join('') + '</tr>';
+      }).join('');
+
+      var infoEl = document.getElementById('de-info-' + anchor);
+      if (infoEl) infoEl.textContent = total ?
+        'Showing ' + (state.page * PER_PAGE + 1) + '–' +
+        Math.min((state.page + 1) * PER_PAGE, total) + ' of ' + total + ' genes' : '0 genes';
+      var pinfoEl = document.getElementById('de-pageinfo-' + anchor);
+      if (pinfoEl) pinfoEl.textContent = 'Page ' + (state.page + 1) + ' / ' + (maxPage + 1);
+      var pager = document.getElementById('de-pager-' + anchor);
+      if (pager) {
+        pager.querySelector('.de-prev').disabled = (state.page === 0);
+        pager.querySelector('.de-next').disabled = (state.page >= maxPage);
+      }
+      tbl.style.display = '';
+      document.getElementById('de-controls-' + anchor).style.display = '';
+      var loading = document.getElementById('de-loading-' + anchor);
+      if (loading) loading.style.display = 'none';
+    }
+
+    _deTables[anchor] = {
+      sortBy: function(ci) {
+        if (state.sortCol === ci) { state.sortDir *= -1; }
+        else { state.sortCol = ci; state.sortDir = 1; }
+        state.page = 0; render();
+      },
+      changePage: function(delta) {
+        var maxPage = Math.max(0, Math.ceil(getFiltered().length / PER_PAGE) - 1);
+        state.page = Math.max(0, Math.min(state.page + delta, maxPage));
+        render();
+      },
+      setQuery: function(q) { state.query = q; state.page = 0; render(); }
+    };
+    render();
+  }
+
+  function _searchDE(anchor, query) {
+    var tbl = _deTables[anchor];
+    if (!tbl) return;
+    tbl.setQuery(query || '');
+  }
+
+  // ── Navigation ──────────────────────────────────────────────────────────
+  function showLanding(el) {
+    document.querySelectorAll('.sc-section').forEach(function(s) { s.classList.remove('visible'); });
+    document.getElementById('landing').style.display = '';
+    document.querySelectorAll('.sidebar-item').forEach(function(i) { i.classList.remove('active'); });
+    if (el) el.classList.add('active');
+    document.getElementById('main-content').scrollTop = 0;
+  }
+
+  function showSubcluster(anchor, el) {
+    document.getElementById('landing').style.display = 'none';
+    document.querySelectorAll('.sc-section').forEach(function(s) { s.classList.remove('visible'); });
+    var section = document.getElementById('sc-' + anchor);
+    if (section) section.classList.add('visible');
+    document.querySelectorAll('.sidebar-item').forEach(function(i) { i.classList.remove('active'); });
+    if (el) el.classList.add('active');
+    document.getElementById('main-content').scrollTop = 0;
+    _initDETable(anchor);
+  }
+
+  function toggleTissue(el) {
+    el.classList.toggle('collapsed');
+  }
+
+  function filterSidebar(query) {
+    var q = query.toLowerCase();
+    document.querySelectorAll('.tissue-group').forEach(function(group) {
+      var anyVisible = false;
+      group.querySelectorAll('.sidebar-item').forEach(function(item) {
+        var match = item.dataset.label.toLowerCase().includes(q) ||
+                    item.dataset.tissue.toLowerCase().includes(q);
+        item.style.display = match ? '' : 'none';
+        if (match) anyVisible = true;
+      });
+      group.style.display = anyVisible ? '' : 'none';
+      // Expand groups that have matches
+      if (anyVisible && q) {
+        group.querySelector('.tissue-heading').classList.remove('collapsed');
+      }
+    });
+  }
+</script>
+</body>
+</html>
