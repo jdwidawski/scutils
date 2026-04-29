@@ -14,8 +14,10 @@ matplotlib.use("Agg")
 from scutils.tools.clustering import (
     iterative_subcluster,
     plot_spatial_split_diagnostics,
+    plot_spatial_split_reassign_subclusters_diagnostics,
     rename_subcluster_labels,
     spatial_split_clusters,
+    spatial_split_reassign_subclusters,
 )
 
 
@@ -30,7 +32,7 @@ def adata_clustered() -> AnnData:
     adata = sc.datasets.pbmc68k_reduced()
     sc.pp.neighbors(adata)
     sc.tl.umap(adata)
-    sc.tl.leiden(adata, key_added="leiden")
+    sc.tl.leiden(adata, key_added="leiden", flavor="igraph", n_iterations=2, directed=False)
     return adata
 
 
@@ -45,6 +47,9 @@ def test_iterative_subcluster_creates_column(adata_clustered: AnnData) -> None:
         adata_clustered,
         cluster_col="leiden",
         subcluster_resolutions={first_cluster: 0.3},
+        flavor="igraph",
+        n_iterations=2,
+        directed=False,
     )
     assert "leiden_subclustered" in adata_clustered.obs.columns
 
@@ -58,6 +63,9 @@ def test_iterative_subcluster_clean_labels_are_integers(
         cluster_col="leiden",
         subcluster_resolutions={first_cluster: 0.3},
         clean=True,
+        flavor="igraph",
+        n_iterations=2,
+        directed=False,
     )
     cats = adata_clustered.obs["leiden_subclustered"].cat.categories.tolist()
     # All labels should be parseable as integers when clean=True
@@ -168,5 +176,67 @@ def test_plot_spatial_split_diagnostics_returns_figure(
         adata_clustered,
         cluster_col="leiden",
         categories=[first_cluster],
+    )
+    assert isinstance(fig, Figure)
+
+
+# ---------------------------------------------------------------------------
+# spatial_split_reassign_subclusters
+# ---------------------------------------------------------------------------
+
+
+def test_spatial_split_reassign_subclusters_creates_column(
+    adata_clustered: AnnData,
+) -> None:
+    first_cluster = adata_clustered.obs["leiden"].cat.categories[0]
+    spatial_split_clusters(
+        adata_clustered,
+        cluster_col="leiden",
+        categories=[first_cluster],
+        clean=False,
+        eps=2.0,
+    )
+    first_split_cat = adata_clustered.obs["leiden_spatial_split"].cat.categories[0]
+    spatial_split_reassign_subclusters(
+        adata_clustered,
+        split_col="leiden_spatial_split",
+        subclusters=[first_split_cat],
+    )
+    assert "leiden_spatial_split_reassigned" in adata_clustered.obs.columns
+
+
+def test_spatial_split_reassign_subclusters_invalid_split_col(
+    adata_clustered: AnnData,
+) -> None:
+    with pytest.raises(ValueError, match="not found"):
+        spatial_split_reassign_subclusters(
+            adata_clustered,
+            split_col="nonexistent",
+            subclusters=["0"],
+        )
+
+
+# ---------------------------------------------------------------------------
+# plot_spatial_split_reassign_subclusters_diagnostics
+# ---------------------------------------------------------------------------
+
+
+def test_plot_spatial_split_reassign_subclusters_diagnostics_returns_figure(
+    adata_clustered: AnnData,
+) -> None:
+    first_cluster = adata_clustered.obs["leiden"].cat.categories[0]
+    spatial_split_clusters(
+        adata_clustered,
+        cluster_col="leiden",
+        categories=[first_cluster],
+        clean=False,
+        eps=2.0,
+    )
+    first_split_cat = adata_clustered.obs["leiden_spatial_split"].cat.categories[0]
+    fig = plot_spatial_split_reassign_subclusters_diagnostics(
+        adata_clustered,
+        split_col="leiden_spatial_split",
+        subclusters=[first_split_cat],
+        cluster_col="leiden",
     )
     assert isinstance(fig, Figure)

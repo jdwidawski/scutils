@@ -20,6 +20,7 @@ from scutils.plotting.heatmaps import (
 from scutils.plotting.embeddings import (
     embedding_category_multiplot,
     embedding_gene_expression_multiplot,
+    umap_3d,
 )
 from scutils.plotting.volcano_plot import volcano_plot
 from scutils.plotting.density_plotting import (
@@ -53,6 +54,7 @@ __all__ = [
     # embeddings
     "embedding_category_multiplot",
     "embedding_gene_expression_multiplot",
+    "umap_3d",
     # volcano
     "volcano_plot",
     # density

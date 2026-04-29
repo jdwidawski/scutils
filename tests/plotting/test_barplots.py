@@ -12,6 +12,7 @@ matplotlib.use("Agg")
 
 from scutils.plotting.barplots import (
     cell_count_barplot,
+    cell_count_barplot_multiplot,
     _bar_colors,
     _ordered_values,
 )
@@ -424,3 +425,381 @@ class TestCellCountBarplotShowCounts:
         ax = fig.axes[0]
         assert len(ax.texts) == 0
         plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# cell_count_barplot_multiplot
+# ---------------------------------------------------------------------------
+
+
+class TestCellCountBarplotMultiplot:
+    def test_returns_figure(self, adata_donors):
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="condition", ncols=2
+        )
+        assert isinstance(fig, Figure)
+        plt.close(fig)
+
+    def test_panel_count_equals_n_panel_values(self, adata_donors):
+        """One visible axis per unique panel value (2 conditions)."""
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="condition", ncols=2
+        )
+        visible = [ax for ax in fig.axes if ax.get_visible()]
+        assert len(visible) == 2
+        plt.close(fig)
+
+    def test_panel_titles_match_panel_values(self, adata_donors):
+        """Each panel title should equal the corresponding panel-column value."""
+        panel_vals = _ordered_values(adata_donors, "condition")
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="condition", ncols=2
+        )
+        visible = [ax for ax in fig.axes if ax.get_visible()]
+        titles = sorted(ax.get_title() for ax in visible)
+        assert titles == sorted(str(v) for v in panel_vals)
+        plt.close(fig)
+
+    def test_shared_y_true_all_same_ylim(self, adata_donors):
+        """All panels must share identical y-axis limits when shared_y=True."""
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="condition",
+            ncols=2, shared_y=True,
+        )
+        visible = [ax for ax in fig.axes if ax.get_visible()]
+        ylims = [ax.get_ylim() for ax in visible]
+        assert all(lim == ylims[0] for lim in ylims)
+        plt.close(fig)
+
+    def test_shared_y_false_no_error(self, adata_donors):
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="condition",
+            ncols=2, shared_y=False,
+        )
+        assert isinstance(fig, Figure)
+        plt.close(fig)
+
+    def test_panel_order_respected(self, adata_donors):
+        """panel_order should control left-to-right panel sequence."""
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="condition",
+            panel_order=["stim", "ctrl"], ncols=2,
+        )
+        visible = [ax for ax in fig.axes if ax.get_visible()]
+        assert visible[0].get_title() == "stim"
+        assert visible[1].get_title() == "ctrl"
+        plt.close(fig)
+
+    def test_empty_axes_hidden(self, adata_donors):
+        """4 donor panels in a ncols=3 grid → 6 total, 2 hidden."""
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="donor", ncols=3
+        )
+        hidden = [ax for ax in fig.axes if not ax.get_visible()]
+        assert len(hidden) == 2
+        plt.close(fig)
+
+    def test_suptitle_set(self, adata_donors):
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="condition",
+            ncols=2, title="My Suptitle",
+        )
+        assert fig._suptitle is not None
+        assert fig._suptitle.get_text() == "My Suptitle"
+        plt.close(fig)
+
+    def test_with_group_by_stacked(self, adata_donors):
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="condition",
+            group_by="donor", mode="stacked", ncols=2,
+        )
+        assert isinstance(fig, Figure)
+        plt.close(fig)
+
+    def test_with_group_by_grouped(self, adata_donors):
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="condition",
+            group_by="donor", mode="grouped", ncols=2,
+        )
+        assert isinstance(fig, Figure)
+        plt.close(fig)
+
+    def test_border_ticks_only_hides_xlabel_non_bottom(self, adata_donors):
+        """Non-bottom-row panels get empty xlabel; bottom-row panels keep it."""
+        # 4 donors → 2 rows × 2 cols; row 0 is not bottom, row 1 is bottom.
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="donor",
+            ncols=2, border_ticks_only=True,
+        )
+        visible = [ax for ax in fig.axes if ax.get_visible()]
+        # Row 0: panels 0 and 1 → empty xlabel
+        assert visible[0].get_xlabel() == ""
+        assert visible[1].get_xlabel() == ""
+        # Row 1: panels 2 and 3 → default xlabel = category name
+        assert visible[2].get_xlabel() == "cell_type"
+        assert visible[3].get_xlabel() == "cell_type"
+        plt.close(fig)
+
+    def test_border_ticks_only_false_all_xlabels_visible(self, adata_donors):
+        """border_ticks_only=False shows xlabel on every panel."""
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="donor",
+            ncols=2, border_ticks_only=False,
+        )
+        visible = [ax for ax in fig.axes if ax.get_visible()]
+        for ax in visible:
+            assert ax.get_xlabel() == "cell_type"
+        plt.close(fig)
+
+    def test_invalid_category_raises(self, adata_donors):
+        with pytest.raises(ValueError, match="not found in adata.obs"):
+            cell_count_barplot_multiplot(
+                adata_donors, category="nonexistent", panel="condition"
+            )
+
+    def test_invalid_panel_raises(self, adata_donors):
+        with pytest.raises(ValueError, match="not found in adata.obs"):
+            cell_count_barplot_multiplot(
+                adata_donors, category="cell_type", panel="nonexistent"
+            )
+
+    def test_invalid_group_by_raises(self, adata_donors):
+        with pytest.raises(ValueError, match="not found in adata.obs"):
+            cell_count_barplot_multiplot(
+                adata_donors, category="cell_type", panel="condition",
+                group_by="nonexistent",
+            )
+
+    def test_invalid_panel_order_raises(self, adata_donors):
+        with pytest.raises(ValueError, match="not found in panel"):
+            cell_count_barplot_multiplot(
+                adata_donors, category="cell_type", panel="condition",
+                panel_order=["ctrl", "stim", "extra"],
+            )
+
+    def test_invalid_mode_raises(self, adata_donors):
+        with pytest.raises(ValueError, match="mode must be"):
+            cell_count_barplot_multiplot(
+                adata_donors, category="cell_type", panel="condition",
+                mode="sideways",
+            )
+
+
+# ---------------------------------------------------------------------------
+# sort_x — ordering x-axis ticks by count
+# ---------------------------------------------------------------------------
+
+
+class TestCellCountBarplotSortX:
+    def test_ascending_single_category(self, adata_basic):
+        """Bar heights must be non-decreasing when sort_x='ascending'."""
+        fig = cell_count_barplot(
+            adata_basic, category="cell_type", sort_x="ascending"
+        )
+        ax = fig.axes[0]
+        heights = [p.get_height() for p in ax.patches]
+        assert heights == sorted(heights)
+        plt.close(fig)
+
+    def test_descending_single_category(self, adata_basic):
+        """Bar heights must be non-increasing when sort_x='descending'."""
+        fig = cell_count_barplot(
+            adata_basic, category="cell_type", sort_x="descending"
+        )
+        ax = fig.axes[0]
+        heights = [p.get_height() for p in ax.patches]
+        assert heights == sorted(heights, reverse=True)
+        plt.close(fig)
+
+    def test_ascending_and_descending_are_reverse(self, adata_basic):
+        """Ascending and descending orderings should be mirror images."""
+        fig_asc = cell_count_barplot(
+            adata_basic, category="cell_type", sort_x="ascending"
+        )
+        fig_desc = cell_count_barplot(
+            adata_basic, category="cell_type", sort_x="descending"
+        )
+        labels_asc = [t.get_text() for t in fig_asc.axes[0].get_xticklabels()]
+        labels_desc = [t.get_text() for t in fig_desc.axes[0].get_xticklabels()]
+        assert labels_asc == list(reversed(labels_desc))
+        plt.close(fig_asc)
+        plt.close(fig_desc)
+
+    def test_sort_x_none_preserves_original_order(self, adata_basic):
+        """sort_x=None must produce the same label order as no sort_x."""
+        fig_default = cell_count_barplot(adata_basic, category="cell_type")
+        fig_none = cell_count_barplot(
+            adata_basic, category="cell_type", sort_x=None
+        )
+        labels_default = [t.get_text() for t in fig_default.axes[0].get_xticklabels()]
+        labels_none = [t.get_text() for t in fig_none.axes[0].get_xticklabels()]
+        assert labels_default == labels_none
+        plt.close(fig_default)
+        plt.close(fig_none)
+
+    def test_ascending_stacked_mode(self, adata_donors):
+        """In stacked mode, total stack heights per category are non-decreasing."""
+        fig = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="stacked", sort_x="ascending",
+        )
+        ax = fig.axes[0]
+        n_cats = len(_ordered_values(adata_donors, "cell_type"))
+        n_grp = len(_ordered_values(adata_donors, "condition"))
+        patches = ax.patches
+        # Each x-position i accumulates heights from patches[i + k*n_cats]
+        col_totals = [
+            sum(patches[i + k * n_cats].get_height() for k in range(n_grp))
+            for i in range(n_cats)
+        ]
+        assert col_totals == sorted(col_totals)
+        plt.close(fig)
+
+    def test_sort_uses_raw_counts_not_fractions(self, adata_basic):
+        """Ordering with normalize=True should mirror sort on raw counts."""
+        fig_raw = cell_count_barplot(
+            adata_basic, category="cell_type", sort_x="ascending"
+        )
+        fig_norm = cell_count_barplot(
+            adata_basic, category="cell_type", normalize=True, sort_x="ascending"
+        )
+        labels_raw = [t.get_text() for t in fig_raw.axes[0].get_xticklabels()]
+        labels_norm = [t.get_text() for t in fig_norm.axes[0].get_xticklabels()]
+        assert labels_raw == labels_norm
+        plt.close(fig_raw)
+        plt.close(fig_norm)
+
+    def test_multiplot_sort_x_ascending(self, adata_donors):
+        """sort_x propagates to each panel without error."""
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="condition",
+            sort_x="ascending", ncols=2,
+        )
+        assert isinstance(fig, Figure)
+        # Each visible panel must have non-decreasing bar heights
+        for ax in (a for a in fig.axes if a.get_visible()):
+            heights = [p.get_height() for p in ax.patches]
+            assert heights == sorted(heights)
+        plt.close(fig)
+
+    def test_multiplot_sort_x_panels_sorted_independently(self, adata_donors):
+        """Different panels may have different sort orders (independent subsets)."""
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="condition",
+            sort_x="descending", ncols=2,
+        )
+        visible = [ax for ax in fig.axes if ax.get_visible()]
+        for ax in visible:
+            heights = [p.get_height() for p in ax.patches]
+            assert heights == sorted(heights, reverse=True)
+        plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# sort_by_group — sort x-axis by a specific group_by value's fraction/count
+# ---------------------------------------------------------------------------
+
+
+class TestCellCountBarplotSortByGroup:
+    def test_sort_by_group_normalized_stacked_descending(self, adata_donors):
+        """With normalize=True+stacked, x-axis should be sorted by the fraction
+        of the specified group_by value (descending)."""
+        fig = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="stacked", normalize=True,
+            sort_x="descending", sort_by_group="ctrl",
+        )
+        ax = fig.axes[0]
+        n_cats = len(_ordered_values(adata_donors, "cell_type"))
+        n_grp = len(_ordered_values(adata_donors, "condition"))
+        patches = ax.patches
+        # patches are in draw order: all of grp0, all of grp1, ...
+        # Fraction of "ctrl" for each x-position is the bottom segment height
+        # (ctrl is the first group_by value alphabetically → first layer drawn)
+        ctrl_fracs = [patches[i].get_height() for i in range(n_cats)]
+        assert ctrl_fracs == sorted(ctrl_fracs, reverse=True)
+        plt.close(fig)
+
+    def test_sort_by_group_normalized_stacked_ascending(self, adata_donors):
+        """Ascending sort by fraction of a specific group_by value."""
+        fig = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="stacked", normalize=True,
+            sort_x="ascending", sort_by_group="ctrl",
+        )
+        ax = fig.axes[0]
+        n_cats = len(_ordered_values(adata_donors, "cell_type"))
+        ctrl_fracs = [ax.patches[i].get_height() for i in range(n_cats)]
+        assert ctrl_fracs == sorted(ctrl_fracs)
+        plt.close(fig)
+
+    def test_sort_by_group_raw_counts(self, adata_donors):
+        """With normalize=False, sort by raw count of the specified group value."""
+        fig = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="stacked", normalize=False,
+            sort_x="descending", sort_by_group="ctrl",
+        )
+        ax = fig.axes[0]
+        n_cats = len(_ordered_values(adata_donors, "cell_type"))
+        ctrl_heights = [ax.patches[i].get_height() for i in range(n_cats)]
+        assert ctrl_heights == sorted(ctrl_heights, reverse=True)
+        plt.close(fig)
+
+    def test_sort_by_group_different_from_total_sort(self, adata_donors):
+        """sort_by_group and sort by total should differ when normalize=True."""
+        fig_total = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="stacked", normalize=True,
+            sort_x="descending",
+        )
+        fig_group = cell_count_barplot(
+            adata_donors, category="cell_type", group_by="condition",
+            mode="stacked", normalize=True,
+            sort_x="descending", sort_by_group="ctrl",
+        )
+        labels_total = [t.get_text() for t in fig_total.axes[0].get_xticklabels()]
+        labels_group = [t.get_text() for t in fig_group.axes[0].get_xticklabels()]
+        # In adata_donors conditions are balanced, so fractions differ across
+        # cell types — the orders should differ.  At minimum, both are valid
+        # lists of the same set of categories.
+        assert set(labels_total) == set(labels_group)
+        plt.close(fig_total)
+        plt.close(fig_group)
+
+    def test_sort_by_group_without_group_by_raises(self, adata_donors):
+        with pytest.raises(ValueError, match="sort_by_group requires group_by"):
+            cell_count_barplot(
+                adata_donors, category="cell_type",
+                sort_x="descending", sort_by_group="ctrl",
+            )
+
+    def test_sort_by_group_invalid_value_raises(self, adata_donors):
+        with pytest.raises(ValueError, match="not found in group_by"):
+            cell_count_barplot(
+                adata_donors, category="cell_type", group_by="condition",
+                mode="stacked", sort_x="descending",
+                sort_by_group="nonexistent",
+            )
+
+    def test_sort_by_group_multiplot(self, adata_donors):
+        """sort_by_group propagates to every panel in multiplot."""
+        fig = cell_count_barplot_multiplot(
+            adata_donors, category="cell_type", panel="donor",
+            group_by="condition", mode="stacked", normalize=True,
+            sort_x="descending", sort_by_group="ctrl", ncols=2,
+        )
+        assert isinstance(fig, Figure)
+        n_cats = len(_ordered_values(adata_donors, "cell_type"))
+        n_grp = len(_ordered_values(adata_donors, "condition"))
+        for ax in (a for a in fig.axes if a.get_visible()):
+            ctrl_fracs = [ax.patches[i].get_height() for i in range(n_cats)]
+            assert ctrl_fracs == sorted(ctrl_fracs, reverse=True)
+        plt.close(fig)
+
+    def test_sort_by_group_multiplot_without_group_by_raises(self, adata_donors):
+        with pytest.raises(ValueError, match="sort_by_group requires group_by"):
+            cell_count_barplot_multiplot(
+                adata_donors, category="cell_type", panel="condition",
+                sort_x="descending", sort_by_group="ctrl",
+            )

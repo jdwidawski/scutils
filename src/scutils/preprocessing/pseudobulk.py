@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
+import scanpy as sc
 from anndata import AnnData
 from scipy.sparse import issparse
 
@@ -91,9 +92,11 @@ def pseudobulk(
     adata: AnnData,
     sample_col: str,
     groups_col: Optional[str] = None,
+    groups_categories: Optional[Sequence[str]] = None,
     layer: Optional[str] = None,
     min_cells: int = 10,
     skip_count_check: bool = False,
+    log1p_transform: bool = False,
 ) -> AnnData:
     """Aggregate a single-cell AnnData into a pseudobulk AnnData.
 
@@ -112,6 +115,11 @@ def pseudobulk(
             created for every unique ``(sample_col, groups_col)``
             combination.  Useful for deriving per-cell-type pseudobulk
             (e.g. ``groups_col="cell_type"``).  Defaults to ``None``.
+        groups_categories: Subset of categories from ``groups_col`` to
+            pseudobulk individually.  Cells belonging to categories
+            **not** in this list are pooled together into a single
+            ``"Rest"`` group per sample.  Requires *groups_col* to be
+            set.  Defaults to ``None`` (use all categories).
         layer: Name of a layer in ``adata.layers`` to use instead of
             ``adata.X``.  Defaults to ``None`` (use ``.X``).
         min_cells: Minimum number of cells required in a group for it to
@@ -120,6 +128,9 @@ def pseudobulk(
         skip_count_check: When ``True``, skip the raw-count validation
             (useful when you are certain the matrix is correct and want
             to avoid the overhead).  Defaults to ``False``.
+        log1p_transform: When ``True``, apply :func:`scanpy.pp.log1p`
+            to the aggregated count matrix before returning.  Defaults
+            to ``False``.
 
     Returns:
         A new :class:`~anndata.AnnData` whose ``.X`` contains the summed
@@ -158,6 +169,18 @@ def pseudobulk(
             f"Column '{groups_col}' not found in adata.obs. "
             f"Available columns: {list(adata.obs.columns)}"
         )
+    if groups_categories is not None and groups_col is None:
+        raise ValueError(
+            "'groups_categories' requires 'groups_col' to be set."
+        )
+
+    # If groups_categories is provided, remap non-selected categories
+    # to "Rest" so they are pooled together per sample.
+    if groups_categories is not None:
+        adata = adata.copy()
+        mapped = adata.obs[groups_col].astype(str).copy()
+        mapped[~mapped.isin(groups_categories)] = "Rest"
+        adata.obs[groups_col] = mapped
 
     # Resolve the expression matrix
     X = adata.layers[layer] if layer is not None else adata.X
@@ -240,4 +263,8 @@ def pseudobulk(
     new_var = adata.var.copy()
 
     pb_adata = AnnData(X=new_X, obs=new_obs, var=new_var)
+
+    if log1p_transform:
+        sc.pp.log1p(pb_adata)
+
     return pb_adata

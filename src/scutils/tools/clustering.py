@@ -653,3 +653,631 @@ def plot_spatial_split_diagnostics(
             fontsize=16, fontweight="bold",
         )
     return fig
+
+
+# ---------------------------------------------------------------------------
+# Reassignment helper
+# ---------------------------------------------------------------------------
+
+
+def _find_reassignment_targets(
+    adata: ad.AnnData,
+    split_col: str,
+    subclusters: Sequence[Union[str, int]],
+    method: Literal["distance", "correlation", "overlap"] = "distance",
+    basis: str = "X_umap",
+    use_rep: Optional[str] = "X_pca",
+    target_col: Optional[str] = None,
+    exclude_siblings: bool = True,
+    overlap_radius: float = 0.5,
+) -> Dict[str, str]:
+    """Auto-detect the best reassignment target for each listed subcluster.
+
+    For each subcluster in *subclusters*, all categories in *split_col* except
+    the subcluster itself — and, when *exclude_siblings* is ``True``, any
+    category sharing the same comma-separated parent prefix — are considered as
+    reassignment candidates.  The best candidate is selected by one of three
+    scoring strategies controlled by *method*.
+
+    Args:
+        adata: Annotated data matrix.
+        split_col: Column in ``adata.obs`` holding the spatially-split labels
+            (output of :func:`spatial_split_clusters` with ``clean=False``).
+        subclusters: Category labels in *split_col* to find targets for.
+        method: Scoring strategy:
+
+            * ``"distance"`` — nearest centroid in ``adata.obsm[use_rep]``.
+            * ``"correlation"`` — highest Pearson correlation of per-category
+              mean vectors in ``adata.obsm[use_rep]``.
+            * ``"overlap"`` — most source cells with a neighbour within
+              *overlap_radius* on ``adata.obsm[basis]``.
+
+            Defaults to ``"distance"``.
+        basis: Embedding key used by the ``"overlap"`` method and for all
+            scatter plots.  Defaults to ``"X_umap"``.
+        use_rep: Representation key in ``adata.obsm`` used by ``"distance"``
+            and ``"correlation"``.  Defaults to ``"X_pca"``.  Set to ``None``
+            to use ``adata.X`` directly (slow for large gene spaces).
+        target_col: Alternative column in ``adata.obs`` whose categories serve
+            as the candidate pool.  When ``None`` (default), candidates are
+            drawn from *split_col* itself and *exclude_siblings* applies.
+            When provided, all categories from *target_col* are valid
+            candidates and *exclude_siblings* is ignored.
+        exclude_siblings: When ``True``, categories sharing the same top-level
+            parent prefix are excluded from the candidate pool (e.g. ``"3,2"``
+            and ``"3"`` are excluded when reassigning ``"3,1"``).
+            Defaults to ``True``.  Ignored when *target_col* is provided.
+        overlap_radius: Neighbourhood radius on the embedding used by the
+            ``"overlap"`` method.  Defaults to ``0.5``.
+
+    Returns:
+        Mapping of subcluster label → best target label.
+
+    Raises:
+        ValueError: If *split_col* is not in ``adata.obs``.
+        ValueError: If any entry in *subclusters* is not a category in
+            *split_col*.
+        ValueError: If no candidates remain after sibling exclusion.
+        KeyError: If *use_rep* is not found in ``adata.obsm`` (for
+            ``"distance"`` and ``"correlation"`` methods).
+        KeyError: If *basis* is not found in ``adata.obsm`` (for the
+            ``"overlap"`` method).
+    """
+    from scipy.sparse import issparse
+
+    if split_col not in adata.obs.columns:
+        raise ValueError(
+            f"split_col '{split_col}' not found in adata.obs. "
+            f"Available columns: {list(adata.obs.columns)}"
+        )
+
+    subclusters = [str(s) for s in subclusters]
+    obs_labels = adata.obs[split_col].astype(str).values
+    all_cats: List[str] = sorted(set(obs_labels.tolist()), key=_sort_key)
+
+    invalid = [s for s in subclusters if s not in all_cats]
+    if invalid:
+        raise ValueError(
+            f"Subclusters {invalid} not found in '{split_col}'. "
+            f"Available categories: {all_cats}"
+        )
+
+    # ------------------------------------------------------------------
+    # Resolve candidate pool (from target_col or split_col itself)
+    # ------------------------------------------------------------------
+    if target_col is not None:
+        if target_col not in adata.obs.columns:
+            raise ValueError(
+                f"target_col '{target_col}' not found in adata.obs. "
+                f"Available columns: {list(adata.obs.columns)}"
+            )
+        target_labels: np.ndarray = adata.obs[target_col].astype(str).values
+        candidate_pool: List[str] = sorted(
+            set(target_labels.tolist()), key=_sort_key
+        )
+    else:
+        target_labels = obs_labels
+        candidate_pool = all_cats
+
+    # ------------------------------------------------------------------
+    # Validate required obsm keys upfront
+    # ------------------------------------------------------------------
+    if method in ("distance", "correlation"):
+        if use_rep is not None and use_rep not in adata.obsm:
+            hint = (
+                " Run sc.pp.pca(adata) first."
+                if use_rep == "X_pca"
+                else ""
+            )
+            raise KeyError(
+                f"use_rep='{use_rep}' not found in adata.obsm.{hint} "
+                f"Available keys: {list(adata.obsm.keys())}"
+            )
+    if method == "overlap" and basis not in adata.obsm:
+        raise KeyError(
+            f"basis='{basis}' not found in adata.obsm. "
+            f"Available keys: {list(adata.obsm.keys())}"
+        )
+
+    # ------------------------------------------------------------------
+    # Pre-compute per-category mean vectors (distance / correlation)
+    # ------------------------------------------------------------------
+    cat_means: Dict[str, np.ndarray] = {}
+    feat_mat: Optional[np.ndarray] = None
+    if method in ("distance", "correlation"):
+        if use_rep is not None:
+            feat_mat = np.array(adata.obsm[use_rep], dtype=float)
+        else:
+            raw = adata.X
+            if issparse(raw):
+                raw = raw.toarray()
+            feat_mat = np.array(raw, dtype=float)
+        for cat in candidate_pool:
+            mask = target_labels == cat
+            if mask.any():
+                cat_means[cat] = feat_mat[mask].mean(axis=0)
+
+    embed_coords: Optional[np.ndarray] = None
+    if method == "overlap":
+        embed_coords = np.array(adata.obsm[basis])
+
+    # ------------------------------------------------------------------
+    # Score and select best candidate for each subcluster
+    # ------------------------------------------------------------------
+    result: Dict[str, str] = {}
+    for src in subclusters:
+        if target_col is not None:
+            # All categories from target_col are valid candidates.
+            candidates = list(candidate_pool)
+        else:
+            parent = src.split(",")[0].strip()
+            excluded = (
+                {c for c in candidate_pool if c.split(",")[0].strip() == parent}
+                if exclude_siblings
+                else {src}
+            )
+            candidates = [c for c in candidate_pool if c not in excluded]
+        if not candidates:
+            raise ValueError(
+                f"No candidate categories remain for subcluster '{src}' after "
+                "sibling exclusion.  Set exclude_siblings=False or ensure "
+                "split_col contains categories from multiple original clusters."
+            )
+
+        src_mask = obs_labels == src
+
+        if method == "distance":
+            src_centroid = feat_mat[src_mask].mean(axis=0)
+            best = min(
+                (c for c in candidates if c in cat_means),
+                key=lambda c: float(
+                    np.linalg.norm(src_centroid - cat_means[c])
+                ),
+                default=candidates[0],
+            )
+
+        elif method == "correlation":
+            src_mean = feat_mat[src_mask].mean(axis=0)
+            best = candidates[0]
+            best_r = -np.inf
+            for c in candidates:
+                if c not in cat_means:
+                    continue
+                r = float(np.corrcoef(src_mean, cat_means[c])[0, 1])
+                if not np.isnan(r) and r > best_r:
+                    best_r = r
+                    best = c
+
+        else:  # "overlap"
+            src_coords = embed_coords[src_mask]
+            best = candidates[0]
+            best_count = -1
+            for c in candidates:
+                c_mask = target_labels == c
+                c_coords = embed_coords[c_mask]
+                if len(c_coords) == 0:
+                    continue
+                dists = np.linalg.norm(
+                    src_coords[:, None, :] - c_coords[None, :, :], axis=2
+                )  # (n_src, n_cand)
+                count = int((dists.min(axis=1) < overlap_radius).sum())
+                if count > best_count:
+                    best_count = count
+                    best = c
+
+        result[src] = best
+
+    return result
+
+
+def spatial_split_reassign_subclusters(
+    adata: ad.AnnData,
+    split_col: str,
+    subclusters: Sequence[Union[str, int]],
+    method: Literal["distance", "correlation", "overlap"] = "distance",
+    basis: str = "X_umap",
+    use_rep: Optional[str] = "X_pca",
+    target_col: Optional[str] = None,
+    exclude_siblings: bool = True,
+    overlap_radius: float = 0.5,
+    key_added: Optional[str] = None,
+) -> None:
+    """Reassign spatially-split subclusters to their nearest non-sibling category.
+
+    Calls :func:`_find_reassignment_targets` to auto-detect the best target
+    for each listed subcluster, then writes the relabelled column to
+    ``adata.obs[key_added]``.  Cells belonging to a source subcluster receive
+    the target label; all other cells retain their existing label from
+    *split_col*.  The source subclusters are removed from the resulting
+    category set.
+
+    This function is intended to follow :func:`spatial_split_clusters` (run
+    with ``clean=False``) and :func:`plot_spatial_split_diagnostics`, once
+    visual inspection reveals that a subcluster topographically overlaps with
+    a different original cluster.  Noise cells (cells that kept the parent
+    label when ``assign_noise=False``) can also be listed in *subclusters*
+    and will be reassigned in the same way.
+
+    Args:
+        adata: Annotated data matrix.
+        split_col: Column in ``adata.obs`` holding the spatially-split labels
+            (output of :func:`spatial_split_clusters` with ``clean=False``).
+        subclusters: Category labels in *split_col* to reassign.  Each label
+            is auto-matched to its best target via *method*.
+        method: Strategy for auto-detecting the best target category.  One of
+            ``"distance"``, ``"correlation"``, or ``"overlap"``.
+            Defaults to ``"distance"``.
+        basis: Embedding key in ``adata.obsm`` used by the ``"overlap"``
+            method.  Defaults to ``"X_umap"``.
+        use_rep: Representation key in ``adata.obsm`` used by ``"distance"``
+            and ``"correlation"``.  Defaults to ``"X_pca"``.  Set to ``None``
+            to fall back to ``adata.X``.
+        target_col: Column in ``adata.obs`` whose categories form the candidate
+            pool.  When ``None`` (default), candidates come from *split_col*
+            itself and *exclude_siblings* applies.  Useful when the desired
+            reassignment targets reside in a different clustering column.
+        exclude_siblings: When ``True``, categories sharing the same parent
+            prefix are excluded from the candidate pool.  Defaults to ``True``.
+            Ignored when *target_col* is provided.
+        overlap_radius: Neighbourhood radius for the ``"overlap"`` method.
+            Defaults to ``0.5``.
+        key_added: Column name written to ``adata.obs``.  Defaults to
+            ``"{split_col}_reassigned"``.
+
+    Returns:
+        None: Modifies *adata* in place.
+
+    Raises:
+        ValueError: If *split_col* is not in ``adata.obs``.
+        ValueError: If any entry in *subclusters* is not a valid category in
+            *split_col*.
+        ValueError: If no candidate categories remain after sibling exclusion.
+        KeyError: If *use_rep* or *basis* is missing from ``adata.obsm``.
+
+    Example:
+        >>> spatial_split_clusters(
+        ...     adata, cluster_col="leiden", categories=["3"], clean=False
+        ... )
+        >>> spatial_split_reassign_subclusters(
+        ...     adata,
+        ...     split_col="leiden_spatial_split",
+        ...     subclusters=["3,1"],
+        ... )
+        >>> adata.obs["leiden_spatial_split_reassigned"].value_counts()
+    """
+    if split_col not in adata.obs.columns:
+        raise ValueError(
+            f"split_col '{split_col}' not found in adata.obs. "
+            f"Available columns: {list(adata.obs.columns)}"
+        )
+
+    out_col = key_added if key_added is not None else f"{split_col}_reassigned"
+    reassign_map = _find_reassignment_targets(
+        adata,
+        split_col=split_col,
+        subclusters=subclusters,
+        method=method,
+        basis=basis,
+        use_rep=use_rep,
+        target_col=target_col,
+        exclude_siblings=exclude_siblings,
+        overlap_radius=overlap_radius,
+    )
+
+    new_labels = adata.obs[split_col].astype(str).copy()
+    for src, tgt in reassign_map.items():
+        new_labels[new_labels == src] = tgt
+
+    remaining_cats = sorted(set(new_labels), key=_sort_key)
+    adata.obs[out_col] = pd.Categorical(
+        new_labels, categories=remaining_cats, ordered=False
+    )
+
+
+def plot_spatial_split_reassign_subclusters_diagnostics(
+    adata: ad.AnnData,
+    split_col: str,
+    subclusters: Sequence[Union[str, int]],
+    cluster_col: Optional[str] = None,
+    method: Literal["distance", "correlation", "overlap"] = "distance",
+    basis: str = "X_umap",
+    use_rep: Optional[str] = "X_pca",
+    target_col: Optional[str] = None,
+    groups: Optional[Sequence[Union[str, int]]] = None,
+    exclude_siblings: bool = True,
+    overlap_radius: float = 0.5,
+    point_size: float = 3.0,
+    figsize_per_panel: Tuple[float, float] = (4.5, 4.0),
+) -> plt.Figure:
+    """Visualise automatic subcluster reassignment before committing.
+
+    For every subcluster listed in *subclusters*, the best reassignment target
+    is detected automatically via :func:`_find_reassignment_targets`.  Four
+    side-by-side panels are drawn per row:
+
+    1. **Parent cluster** – cells of the parent cluster highlighted in blue on
+       the full embedding (requires *cluster_col*; otherwise all cells are
+       grey with a note in the title).
+    2. **Selected groups** – subclusters specified by *groups* (or all
+       same-parent siblings when *groups* is ``None``) coloured with a tab10
+       palette; the source subcluster overlaid with a ★ marker in its
+       palette colour to distinguish it without a special colour.
+    3. **Source vs. target (pre-merge)** – source in crimson, auto-detected
+       target in orange, all other cells grey; title shows the detected
+       reassignment.
+    4. **Merged preview** – source and target cells rendered together in steel
+       blue, all other cells grey, to show the expected post-reassignment
+       appearance.
+
+    A bold row label ``"{subcluster} → {target}"`` is drawn on the left
+    margin for each row, matching the style of
+    :func:`plot_spatial_split_diagnostics`.
+
+    This function does **not** mutate *adata*.  To commit the reassignment use
+    :func:`spatial_split_reassign_subclusters`.
+
+    Args:
+        adata: Annotated data matrix.
+        split_col: Column in ``adata.obs`` with the spatially-split labels
+            (output of :func:`spatial_split_clusters` with ``clean=False``).
+        subclusters: Category labels to inspect and visualise.
+        cluster_col: Key in ``adata.obs`` holding the original (pre-split)
+            cluster assignments, used to draw panel 1.  When ``None``, panel 1
+            shows a grey background with a note in the title.
+            Defaults to ``None``.
+        method: Strategy for auto-detecting the best target category.  One of
+            ``"distance"``, ``"correlation"``, or ``"overlap"``.
+            Defaults to ``"distance"``.
+        basis: Embedding key in ``adata.obsm`` used for all scatter plots and
+            by the ``"overlap"`` method.  Defaults to ``"X_umap"``.
+        use_rep: Representation key in ``adata.obsm`` used by ``"distance"``
+            and ``"correlation"``.  Defaults to ``"X_pca"``.  Set to ``None``
+            to use ``adata.X`` directly.
+        target_col: Column in ``adata.obs`` whose categories form the candidate
+            pool.  When ``None`` (default), candidates come from *split_col*.
+        groups: Category names to display in panel 2.  When ``None`` (default),
+            all subclusters sharing the same parent prefix as the source are
+            shown.  Entries should be valid category names in *split_col*.
+        exclude_siblings: When ``True``, sibling subclusters are excluded from
+            the candidate pool when detecting the target.  Defaults to ``True``.
+            Ignored when *target_col* is provided.
+        overlap_radius: Neighbourhood radius for the ``"overlap"`` method.
+            Defaults to ``0.5``.
+        point_size: Scatter-plot point size.  Defaults to ``3.0``.
+        figsize_per_panel: ``(width, height)`` of each individual panel in
+            inches.  Defaults to ``(4.5, 4.0)``.
+
+    Returns:
+        The diagnostic matplotlib figure.
+
+    Raises:
+        ValueError: If *split_col* or *basis* is not found in ``adata``.
+        ValueError: If *cluster_col* is provided but not found in ``adata.obs``.
+        ValueError: If any entry in *subclusters* is not a valid category in
+            *split_col*.
+
+    Example:
+        >>> spatial_split_clusters(
+        ...     adata, cluster_col="leiden", categories=["3"], clean=False
+        ... )
+        >>> fig = plot_spatial_split_reassign_subclusters_diagnostics(
+        ...     adata,
+        ...     split_col="leiden_spatial_split",
+        ...     subclusters=["3,1"],
+        ...     cluster_col="leiden",
+        ...     method="distance",
+        ... )
+        >>> fig.savefig("reassign_diagnostics.png", dpi=150)
+    """
+    if split_col not in adata.obs.columns:
+        raise ValueError(
+            f"split_col '{split_col}' not found in adata.obs."
+        )
+    if cluster_col is not None and cluster_col not in adata.obs.columns:
+        raise ValueError(
+            f"cluster_col '{cluster_col}' not found in adata.obs."
+        )
+    if basis not in adata.obsm:
+        raise ValueError(
+            f"basis '{basis}' not found in adata.obsm."
+        )
+
+    subclusters = [str(s) for s in subclusters]
+
+    # Detect all targets in a single pass (pre-computes feature matrix once).
+    reassign_map = _find_reassignment_targets(
+        adata,
+        split_col=split_col,
+        subclusters=subclusters,
+        method=method,
+        basis=basis,
+        use_rep=use_rep,
+        target_col=target_col,
+        exclude_siblings=exclude_siblings,
+        overlap_radius=overlap_radius,
+    )
+
+    coords = np.array(adata.obsm[basis])
+    split_labels = adata.obs[split_col].astype(str).values
+    # When target_col is provided tgt_mask looks up the other column.
+    _tgt_labels = (
+        adata.obs[target_col].astype(str).values
+        if target_col is not None
+        else split_labels
+    )
+    all_cats = sorted(set(split_labels.tolist()), key=_sort_key)
+    orig_labels = (
+        adata.obs[cluster_col].astype(str).values
+        if cluster_col is not None
+        else None
+    )
+
+    n_rows = len(subclusters)
+    _N_COLS = 4
+    fig, axs = plt.subplots(
+        nrows=n_rows,
+        ncols=_N_COLS,
+        figsize=(
+            figsize_per_panel[0] * _N_COLS,
+            figsize_per_panel[1] * n_rows,
+        ),
+        squeeze=False,
+    )
+
+    _x_lbl = f"{basis.replace('X_', '')}1"
+    _y_lbl = f"{basis.replace('X_', '')}2"
+
+    def _fmt(ax: plt.Axes) -> None:
+        ax.set_xlabel(_x_lbl, fontsize=8)
+        ax.set_ylabel(_y_lbl, fontsize=8)
+        ax.tick_params(labelsize=7)
+        ax.grid(False)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+    _BG = "#e0e0e0"
+    _BG_S = point_size * 0.3
+    cmap_tab = matplotlib.colormaps["tab10"]
+
+    for row, src in enumerate(subclusters):
+        tgt = reassign_map[src]
+        parent = src.split(",")[0].strip()
+
+        # All categories in split_col sharing the same parent prefix
+        # (includes noise/parent-remainder cells labelled as e.g. "3").
+        same_parent_cats = [
+            c for c in all_cats
+            if c.split(",")[0].strip() == parent
+        ]
+
+        src_mask = split_labels == src
+        tgt_mask = _tgt_labels == tgt
+
+        # ---------------------------------------------------------------- #
+        # Panel 1 – original parent cluster on the full embedding           #
+        # ---------------------------------------------------------------- #
+        ax1 = axs[row, 0]
+        ax1.scatter(
+            coords[:, 0], coords[:, 1],
+            c=_BG, s=_BG_S, rasterized=True,
+        )
+        if orig_labels is not None:
+            p_mask = orig_labels == parent
+            ax1.scatter(
+                coords[p_mask, 0], coords[p_mask, 1],
+                c="#1f77b4", s=point_size, rasterized=True,
+            )
+            ax1.set_title(
+                f"Cluster '{parent}' in '{cluster_col}'"
+                f"  (n={int(p_mask.sum()):,})",
+                fontsize=10,
+            )
+        else:
+            ax1.set_title(
+                f"Cluster '{parent}'\n(cluster_col not provided)",
+                fontsize=10,
+            )
+        _fmt(ax1)
+
+        # ---------------------------------------------------------------- #
+        # Panel 2 – selected groups (tab10); source with ★ marker           #
+        # ---------------------------------------------------------------- #
+        ax2 = axs[row, 1]
+        ax2.scatter(
+            coords[:, 0], coords[:, 1],
+            c=_BG, s=_BG_S, rasterized=True,
+        )
+        groups_to_plot = (
+            [str(g) for g in groups]
+            if groups is not None
+            else same_parent_cats
+        )
+        # Draw non-source groups first.
+        for i, c in enumerate(groups_to_plot):
+            if c == src:
+                continue
+            c_mask = split_labels == c
+            ax2.scatter(
+                coords[c_mask, 0], coords[c_mask, 1],
+                c=[cmap_tab(i % 10)], s=point_size,
+                label=c, rasterized=True,
+            )
+        # Source drawn last (on top) with same palette colour but ★ marker.
+        _src_idx = (
+            groups_to_plot.index(src)
+            if src in groups_to_plot
+            else len(groups_to_plot)
+        )
+        ax2.scatter(
+            coords[src_mask, 0], coords[src_mask, 1],
+            c=[cmap_tab(_src_idx % 10)], s=point_size * 2.0,
+            marker="*", label=f"{src} (source)", rasterized=True, zorder=3,
+        )
+        ax2.legend(fontsize=7, markerscale=2, frameon=True, loc="best")
+        ax2.set_title(
+            f"Subclusters of parent '{parent}'\n(source: \u2605 marker)",
+            fontsize=10,
+        )
+        _fmt(ax2)
+
+        # ---------------------------------------------------------------- #
+        # Panel 3 – source (crimson) vs. target (orange), pre-merge         #
+        # ---------------------------------------------------------------- #
+        ax3 = axs[row, 2]
+        ax3.scatter(
+            coords[:, 0], coords[:, 1],
+            c=_BG, s=_BG_S, rasterized=True,
+        )
+        ax3.scatter(
+            coords[tgt_mask, 0], coords[tgt_mask, 1],
+            c="darkorange", s=point_size,
+            label=f"{tgt} (target)", rasterized=True,
+        )
+        ax3.scatter(
+            coords[src_mask, 0], coords[src_mask, 1],
+            c="crimson", s=point_size,
+            label=f"{src} (source)", rasterized=True, zorder=3,
+        )
+        ax3.legend(fontsize=7, markerscale=2, frameon=True, loc="best")
+        ax3.set_title(
+            f"{src} \u2192 {tgt}  (via {method})",
+            fontsize=10,
+        )
+        _fmt(ax3)
+
+        # ---------------------------------------------------------------- #
+        # Panel 4 – merged preview                                          #
+        # ---------------------------------------------------------------- #
+        ax4 = axs[row, 3]
+        ax4.scatter(
+            coords[:, 0], coords[:, 1],
+            c=_BG, s=_BG_S, rasterized=True,
+        )
+        merged_mask = src_mask | tgt_mask
+        ax4.scatter(
+            coords[merged_mask, 0], coords[merged_mask, 1],
+            c="steelblue", s=point_size,
+            label=f"merged  (n={int(merged_mask.sum()):,})",
+            rasterized=True,
+        )
+        ax4.legend(fontsize=7, markerscale=2, frameon=True, loc="best")
+        ax4.set_title(
+            f"After reassignment\n(\u2192 '{tgt}')",
+            fontsize=10,
+        )
+        _fmt(ax4)
+
+    # Bold row labels on the left margin (matching plot_spatial_split_diagnostics).
+    left_margin = 0.06
+    plt.tight_layout(rect=[left_margin, 0, 1, 1])
+    fig.subplots_adjust(hspace=0.55)
+    for row, src in enumerate(subclusters):
+        tgt = reassign_map[src]
+        y = 1.0 - (row + 0.5) / n_rows
+        fig.text(
+            left_margin - 0.01, y,
+            f"{src} \u2192 {tgt}",
+            ha="right", va="center",
+            fontsize=14, fontweight="bold",
+        )
+    return fig

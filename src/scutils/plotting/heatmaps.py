@@ -1466,17 +1466,16 @@ def plot_correlation_distance_heatmap(
             )
 
     # ------------------------------------------------------------------ #
-    # 10. Colorbar: horizontal, below heatmap, 50 % of heatmap width      #
+    # 10. Colorbar: horizontal, below heatmap      #
     # ------------------------------------------------------------------ #
     # Using ax=ax_heatmap (not cax) lets constrained_layout handle the
     # spacing between the heatmap tick labels and the colorbar.
-    # shrink=0.5 makes it half the heatmap width; pad adds vertical space.
     cbar = fig.colorbar(
         im,
         ax=ax_heatmap,
         location="bottom",
-        shrink=0.5,
-        pad=0.15,
+        shrink=1.0,
+        pad=0.05,
         aspect=40,
     )
     cbar.set_label(colorbar_label, fontsize=9)

@@ -187,6 +187,7 @@
     .download-link:hover { text-decoration: underline; }
 
     /* ── DE table ── */
+    .de-search { width: 100%; max-width: 320px; margin: 10px 0 4px; padding: 5px 10px; border: 1px solid #d0d5dd; border-radius: 6px; font-size: 0.85rem; }
     .de-table-wrapper { overflow-x: auto; margin-top: 8px; min-height: 80px; }
     table.de-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
     table.de-table thead th {
@@ -341,31 +342,31 @@
         <!-- UMAP panels — images are separate files in img/ -->
         <div class="section-label">UMAP embeddings</div>
         <div class="img-grid cols-3">
-          {% if sc.umap_celltype_b64 %}
+          {% if sc.umap_celltype_path %}
           <div class="img-card">
             <div class="img-title">
               Cell type
-              {% if sc.umap_celltype_b64 %}<a class="download-link" href="data:image/png;base64,{{ sc.umap_celltype_b64 }}" download="{{ sc.anchor }}_umap_celltype.png">⬇ download</a>{% endif %}
+              <a class="download-link" href="{{ sc.umap_celltype_path }}" download="{{ sc.anchor }}_umap_celltype.png">⬇ download</a>
             </div>
-            <img src="data:image/png;base64,{{ sc.umap_celltype_b64 }}" alt="UMAP cell type" />
+            <img src="{{ sc.umap_celltype_path }}" alt="UMAP cell type" />
           </div>
           {% endif %}
-          {% if sc.umap_disease_b64 %}
+          {% if sc.umap_disease_path %}
           <div class="img-card">
             <div class="img-title">
               Disease condition
-              {% if sc.umap_disease_b64 %}<a class="download-link" href="data:image/png;base64,{{ sc.umap_disease_b64 }}" download="{{ sc.anchor }}_umap_disease.png">⬇ download</a>{% endif %}
+              <a class="download-link" href="{{ sc.umap_disease_path }}" download="{{ sc.anchor }}_umap_disease.png">⬇ download</a>
             </div>
-            <img src="data:image/png;base64,{{ sc.umap_disease_b64 }}" alt="UMAP disease" />
+            <img src="{{ sc.umap_disease_path }}" alt="UMAP disease" />
           </div>
           {% endif %}
-          {% if sc.umap_highlight_b64 %}
+          {% if sc.umap_highlight_path %}
           <div class="img-card">
             <div class="img-title">
               Subcluster highlight
-              {% if sc.umap_highlight_b64 %}<a class="download-link" href="data:image/png;base64,{{ sc.umap_highlight_b64 }}" download="{{ sc.anchor }}_umap_highlight.png">⬇ download</a>{% endif %}
+              <a class="download-link" href="{{ sc.umap_highlight_path }}" download="{{ sc.anchor }}_umap_highlight.png">⬇ download</a>
             </div>
-            <img src="data:image/png;base64,{{ sc.umap_highlight_b64 }}" alt="UMAP highlight" />
+            <img src="{{ sc.umap_highlight_path }}" alt="UMAP highlight" />
           </div>
           {% endif %}
         </div>
@@ -373,22 +374,22 @@
         <!-- Volcano + Dotplot -->
         <div class="section-label">Differential expression &amp; functional enrichment</div>
         <div class="img-grid cols-2">
-          {% if sc.volcano_b64 %}
+          {% if sc.volcano_path %}
           <div class="img-card">
             <div class="img-title">
               Volcano plot
-              {% if sc.volcano_b64 %}<a class="download-link" href="data:image/png;base64,{{ sc.volcano_b64 }}" download="{{ sc.anchor }}_volcano.png">⬇ download</a>{% endif %}
+              <a class="download-link" href="{{ sc.volcano_path }}" download="{{ sc.anchor }}_volcano.png">⬇ download</a>
             </div>
-            <img src="data:image/png;base64,{{ sc.volcano_b64 }}" alt="Volcano plot" />
+            <img src="{{ sc.volcano_path }}" alt="Volcano plot" />
           </div>
           {% endif %}
-          {% if sc.dotplot_b64 %}
+          {% if sc.dotplot_path %}
           <div class="img-card">
             <div class="img-title">
               Functional enrichment
-              {% if sc.dotplot_b64 %}<a class="download-link" href="data:image/png;base64,{{ sc.dotplot_b64 }}" download="{{ sc.anchor }}_enrichment.png">⬇ download</a>{% endif %}
+              <a class="download-link" href="{{ sc.dotplot_path }}" download="{{ sc.anchor }}_enrichment.png">⬇ download</a>
             </div>
-            <img src="data:image/png;base64,{{ sc.dotplot_b64 }}" alt="Enrichment dotplot" />
+            <img src="{{ sc.dotplot_path }}" alt="Enrichment dotplot" />
           </div>
           {% endif %}
         </div>
@@ -397,8 +398,9 @@
         {% if sc.de_json %}
         <div class="section-label" style="display:flex; justify-content:space-between; align-items:center;">
           <span>Significant DE genes (padj &lt; threshold)</span>
-          {% if sc.de_csv_b64 %}<a class="download-link" href="data:text/csv;base64,{{ sc.de_csv_b64 }}" download="{{ sc.anchor }}_de.csv">⬇ download CSV</a>{% endif %}
+          {% if sc.de_csv_path %}<a class="download-link" href="{{ sc.de_csv_path }}" download="{{ sc.anchor }}_de.csv">⬇ download CSV</a>{% endif %}
         </div>
+        <input type="search" class="de-search" placeholder="Search gene…" oninput="_searchDE('{{ sc.anchor }}', this.value)">
         <div class="de-table-wrapper">
           <p class="de-loading" id="de-loading-{{ sc.anchor }}">Loading…</p>
           <table id="de-{{ sc.anchor }}" class="de-table" style="display:none">
@@ -451,7 +453,8 @@
     var state = {
       sortCol: lfcI >= 0 ? lfcI : (pvalI >= 0 ? pvalI : -1),
       sortDir: lfcI >= 0 ? -1 : 1,
-      page: 0
+      page: 0,
+      query: ''
     };
 
     function cmp(a, b, dir) {
@@ -461,10 +464,18 @@
       if (!isNaN(an) && !isNaN(bn)) return dir * (an - bn);
       return dir * String(a).localeCompare(String(b));
     }
+    function getFiltered() {
+      if (!state.query) return allRows;
+      var q = state.query.toLowerCase();
+      return allRows.filter(function(r) {
+        return r.some(function(v) { return String(v == null ? '' : v).toLowerCase().indexOf(q) >= 0; });
+      });
+    }
     function getSorted() {
-      if (state.sortCol < 0) return allRows;
+      var filtered = getFiltered();
+      if (state.sortCol < 0) return filtered;
       var sc = state.sortCol, sd = state.sortDir;
-      return allRows.slice().sort(function(a, b) { return cmp(a[sc], b[sc], sd); });
+      return filtered.slice().sort(function(a, b) { return cmp(a[sc], b[sc], sd); });
     }
     function esc(v) {
       return (v === null || v === undefined ? '' : String(v))
@@ -517,8 +528,13 @@
         state.page = 0; render();
       },
       changePage: function(delta) {
-        var maxPage = Math.max(0, Math.ceil(allRows.length / PER_PAGE) - 1);
+        var maxPage = Math.max(0, Math.ceil(getFiltered().length / PER_PAGE) - 1);
         state.page = Math.max(0, Math.min(state.page + delta, maxPage));
+        render();
+      },
+      setQuery: function(q) {
+        state.query = q;
+        state.page = 0;
         render();
       }
     };
@@ -550,6 +566,13 @@
     document.querySelectorAll('.sidebar-item').forEach(function(item) {
       item.style.display = item.textContent.toLowerCase().includes(q) ? '' : 'none';
     });
+  }
+
+  // ── Gene search ─────────────────────────────────────────────────────────
+  function _searchDE(anchor, query) {
+    var tbl = _deTables[anchor];
+    if (!tbl) return;
+    tbl.setQuery(query || '');
   }
 
   // Auto-select first subcluster
