@@ -339,30 +339,30 @@
           {% if sc.umap_celltype_path %}
           <div class="img-card">
             <div class="img-title">Cell type
-              <a class="download-link" href="{{ sc.umap_celltype_path }}" download="{{ sc.anchor }}_umap_celltype.png">⬇ download</a>
+              <a class="download-link" href="{{ sc.umap_celltype_path | urlencode_path }}" download="{{ sc.anchor }}_umap_celltype.png">⬇ download</a>
             </div>
             <div class="img-body">
-              <img src="{{ sc.umap_celltype_path }}" alt="UMAP cell type" />
+              <img src="{{ sc.umap_celltype_path | urlencode_path }}" alt="UMAP cell type" />
             </div>
           </div>
           {% endif %}
           {% if sc.umap_disease_path %}
           <div class="img-card">
             <div class="img-title">Disease condition
-              <a class="download-link" href="{{ sc.umap_disease_path }}" download="{{ sc.anchor }}_umap_disease.png">⬇ download</a>
+              <a class="download-link" href="{{ sc.umap_disease_path | urlencode_path }}" download="{{ sc.anchor }}_umap_disease.png">⬇ download</a>
             </div>
             <div class="img-body">
-              <img src="{{ sc.umap_disease_path }}" alt="UMAP disease" />
+              <img src="{{ sc.umap_disease_path | urlencode_path }}" alt="UMAP disease" />
             </div>
           </div>
           {% endif %}
           {% if sc.umap_highlight_path %}
           <div class="img-card">
             <div class="img-title">Subcluster highlight
-              <a class="download-link" href="{{ sc.umap_highlight_path }}" download="{{ sc.anchor }}_umap_highlight.png">⬇ download</a>
+              <a class="download-link" href="{{ sc.umap_highlight_path | urlencode_path }}" download="{{ sc.anchor }}_umap_highlight.png">⬇ download</a>
             </div>
             <div class="img-body">
-              <img src="{{ sc.umap_highlight_path }}" alt="UMAP highlight" />
+              <img src="{{ sc.umap_highlight_path | urlencode_path }}" alt="UMAP highlight" />
             </div>
           </div>
           {% endif %}
@@ -374,17 +374,17 @@
           {% if sc.volcano_path %}
           <div class="img-card">
             <div class="img-title">Volcano plot
-              <a class="download-link" href="{{ sc.volcano_path }}" download="{{ sc.anchor }}_volcano.png">⬇ download</a>
+              <a class="download-link" href="{{ sc.volcano_path | urlencode_path }}" download="{{ sc.anchor }}_volcano.png">⬇ download</a>
             </div>
-            <img src="{{ sc.volcano_path }}" alt="Volcano plot" />
+            <img src="{{ sc.volcano_path | urlencode_path }}" alt="Volcano plot" />
           </div>
           {% endif %}
           {% if sc.dotplot_path %}
           <div class="img-card">
             <div class="img-title">Functional enrichment
-              <a class="download-link" href="{{ sc.dotplot_path }}" download="{{ sc.anchor }}_enrichment.png">⬇ download</a>
+              <a class="download-link" href="{{ sc.dotplot_path | urlencode_path }}" download="{{ sc.anchor }}_enrichment.png">⬇ download</a>
             </div>
-            <img src="{{ sc.dotplot_path }}" alt="Enrichment dotplot" />
+            <img src="{{ sc.dotplot_path | urlencode_path }}" alt="Enrichment dotplot" />
           </div>
           {% endif %}
         </div>
@@ -393,7 +393,7 @@
         {% if sc.de_json %}
         <div class="section-label" style="display:flex; justify-content:space-between; align-items:center;">
           <span>Significant DE genes (padj &lt; threshold)</span>
-          {% if sc.de_csv_path %}<a class="download-link" href="{{ sc.de_csv_path }}" download="{{ sc.anchor }}_de.csv">⬇ download CSV</a>{% endif %}
+          {% if sc.de_csv_path %}<a class="download-link" href="{{ sc.de_csv_path | urlencode_path }}" download="{{ sc.anchor }}_de.csv">⬇ download CSV</a>{% endif %}
         </div>
         <input type="search" class="de-search" placeholder="Search gene…" oninput="_searchDE('{{ tissue }}__{{ sc.anchor }}', this.value)">
         <div class="de-table-wrapper">
