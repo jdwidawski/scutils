@@ -336,7 +336,12 @@
           </div>
           <div class="stat-box" style="grid-column: 1 / -1;">
             <div class="label">Differential expression reference</div>
-            <div class="value" style="font-size:0.82rem;">{{ sc.stats.de_reference if sc.stats.de_reference is defined else sc.stats.get('de_reference', '—') }}</div>
+            {% set _de_ref = sc.stats.de_reference if sc.stats.de_reference is defined else sc.stats.get('de_reference', '—') %}
+            {% if _de_ref == '—' %}
+            <div class="value" style="font-size:0.82rem; color:#888; font-style:italic;">DE not run — too few cells/samples to construct pseudobulk replicates for this subcluster.</div>
+            {% else %}
+            <div class="value" style="font-size:0.82rem;">{{ _de_ref }}</div>
+            {% endif %}
           </div>
         </div>
 
