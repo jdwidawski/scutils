@@ -298,13 +298,14 @@
         <!-- Stats -->
         <div class="stats-grid">
           {% for key, label in [
-            ("n_total",          "Total cells"),
-            ("n_disease",        "Disease cells"),
-            ("n_healthy",        "Healthy cells"),
-            ("fold_enrichment",  "Fold enrichment"),
-            ("fdr_pval",         "FDR p-value"),
-            ("cell_type",        "Cell type"),
-            ("de_reference",     "DE reference"),
+            ("n_total",             "Total cells"),
+            ("n_disease",           "Disease cells"),
+            ("n_healthy",           "Healthy cells"),
+            ("fold_enrichment",     "Fold enrichment"),
+            ("fdr_pval",            "FDR p-value"),
+            ("cell_type",           "Cell type"),
+            ("disease_composition", "Disease composition"),
+            ("de_reference",        "DE reference"),
           ] %}
           {% if sc.stats.get(key) is not none %}
           <div class="stat-card">
