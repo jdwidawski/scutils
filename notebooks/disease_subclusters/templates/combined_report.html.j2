@@ -157,6 +157,11 @@
     }
     /* Non-UMAP grids (cols-2): full-width image */
     .img-card img { width: 100%; height: auto; display: block; }
+    /* Empty / placeholder card */
+    .img-card--empty { min-height: 120px; justify-content: stretch; }
+    .img-placeholder { flex: 1; display: flex; align-items: center; justify-content: center;
+                       padding: 24px 16px; color: #888; font-size: 0.85rem; font-style: italic;
+                       text-align: center; background: #f8f9fb; }
     .download-link { font-size: 0.72rem; color: #4a90d9; text-decoration: none; white-space: nowrap; }
     .download-link:hover { text-decoration: underline; }
 
@@ -408,6 +413,11 @@
             </div>
             <img src="{{ sc.volcano_path }}" alt="Volcano plot" />
           </div>
+          {% else %}
+          <div class="img-card img-card--empty">
+            <div class="img-title">Volcano plot</div>
+            <div class="img-placeholder">⚠ No significant differential expression results available for this subcluster.</div>
+          </div>
           {% endif %}
           {% if sc.dotplot_path %}
           <div class="img-card">
@@ -415,6 +425,11 @@
               <a class="download-link" href="{{ sc.dotplot_path }}" download="{{ sc.anchor }}_enrichment.png">⬇ download</a>
             </div>
             <img src="{{ sc.dotplot_path }}" alt="Enrichment dotplot" />
+          </div>
+          {% else %}
+          <div class="img-card img-card--empty">
+            <div class="img-title">Functional enrichment</div>
+            <div class="img-placeholder">⚠ No significant functional enrichment terms were found for this subcluster.</div>
           </div>
           {% endif %}
         </div>
