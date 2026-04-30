@@ -117,11 +117,14 @@
     .sc-body { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 28px; }
 
     /* ── Stats grid ── */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
-    .stat-card { background: #f7f8fa; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; }
-    .stat-card .s-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
-                          letter-spacing: 0.05em; color: #718096; }
-    .stat-card .s-value { font-size: 1.1rem; font-weight: 700; color: #1a1a2e; margin-top: 3px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 22px; }
+    .stat-box { background: #f8f9fb; border: 1px solid #e4e8ee; border-radius: 4px; padding: 9px 12px; }
+    .stat-box .label { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: .05em; }
+    .stat-box .value { font-size: 1.05rem; font-weight: 600; margin-top: 2px; word-break: break-word; }
+    /* keep stat-card for any legacy use */
+    .stat-card { background: #f8f9fb; border: 1px solid #e4e8ee; border-radius: 4px; padding: 9px 12px; }
+    .stat-card .s-label { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: .05em; }
+    .stat-card .s-value { font-size: 1.05rem; font-weight: 600; margin-top: 2px; word-break: break-word; }
 
     /* ── Images ── */
     .section-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
@@ -296,30 +299,55 @@
       <div class="sc-body">
 
         <!-- Stats -->
+        <div class="section-label">Summary statistics</div>
         <div class="stats-grid">
-          {% for key, label in [
-            ("n_total",             "Total cells"),
-            ("n_disease",           "Disease cells"),
-            ("n_healthy",           "Healthy cells"),
-            ("fold_enrichment",     "Fold enrichment"),
-            ("fdr_pval",            "FDR p-value"),
-            ("cell_type",           "Cell type"),
-            ("disease_composition", "Disease composition"),
-            ("de_reference",        "DE reference"),
-          ] %}
-          {% if sc.stats.get(key) is not none %}
-          <div class="stat-card">
-            <div class="s-label">{{ label }}</div>
-            <div class="s-value">{{ sc.stats.get(key, "—") }}</div>
+          <div class="stat-box">
+            <div class="label">Total cells</div>
+            <div class="value">{{ sc.stats.n_total if sc.stats.n_total is defined else sc.stats.get('n_total', '—') }}</div>
           </div>
-          {% endif %}
-          {% endfor %}
+          <div class="stat-box">
+            <div class="label">Disease cells</div>
+            <div class="value">{{ sc.stats.n_disease if sc.stats.n_disease is defined else sc.stats.get('n_disease', '—') }}</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Healthy cells</div>
+            <div class="value">{{ sc.stats.n_healthy if sc.stats.n_healthy is defined else sc.stats.get('n_healthy', '—') }}</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Fold enrichment</div>
+            <div class="value">{{ sc.stats.fold_enrichment if sc.stats.fold_enrichment is defined else sc.stats.get('fold_enrichment', '—') }}</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">FDR p-value</div>
+            <div class="value">{{ sc.stats.fdr_pval if sc.stats.fdr_pval is defined else sc.stats.get('fdr_pval', '—') }}</div>
+          </div>
+          <div class="stat-box">
+            <div class="label">Cell type</div>
+            <div class="value">{{ sc.stats.cell_type if sc.stats.cell_type is defined else sc.stats.get('cell_type', '—') }}</div>
+          </div>
+          <div class="stat-box" style="grid-column: 1 / -1;">
+            <div class="label">Disease composition</div>
+            <div class="value" style="font-size:0.82rem;">{{ sc.stats.disease_composition if sc.stats.disease_composition is defined else sc.stats.get('disease_composition', '—') }}</div>
+          </div>
+          <div class="stat-box" style="grid-column: 1 / -1;">
+            <div class="label">Differential expression reference</div>
+            <div class="value" style="font-size:0.82rem;">{{ sc.stats.de_reference if sc.stats.de_reference is defined else sc.stats.get('de_reference', '—') }}</div>
+          </div>
         </div>
 
         {% if sc.disease_breakdown %}
-        <div class="section-label">Disease breakdown</div>
+        <div class="section-label">Per-disease breakdown</div>
         <table class="breakdown-table">
-          <thead><tr><th>Disease</th><th>Cells</th><th>%</th><th>Fold</th><th>FDR</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Disease</th>
+              <th>Cells in subcluster</th>
+              <th>% of subcluster</th>
+              <th>Fold enrichment</th>
+              <th>p-value</th>
+              <th>FDR</th>
+            </tr>
+          </thead>
           <tbody>
           {% for r in sc.disease_breakdown %}
           <tr>
@@ -327,6 +355,7 @@
             <td>{{ r.n_cells }}</td>
             <td>{{ r.pct }}</td>
             <td>{{ r.fold }}</td>
+            <td>{{ r.pval }}</td>
             <td>{{ r.fdr }}</td>
           </tr>
           {% endfor %}
