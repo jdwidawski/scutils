@@ -168,10 +168,11 @@
     }
 
     /* ── Image grid ── */
-    .img-grid { display: grid; gap: 14px; margin-bottom: 20px; align-items: center; }
+    .img-grid { display: grid; gap: 14px; margin-bottom: 20px; align-items: stretch; }
     .img-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
     .img-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
-    .img-card { border: 1px solid #e4e8ee; border-radius: 4px; overflow: hidden; }
+    .img-card { border: 1px solid #e4e8ee; border-radius: 4px; overflow: hidden;
+                display: flex; flex-direction: column; }
     .img-card .img-title {
       background: #f8f9fb;
       font-size: 0.75rem;
@@ -181,7 +182,27 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-shrink: 0;
     }
+    /* UMAP grid: all three cards share the same height; image centred inside */
+    .img-grid.cols-3 .img-card { height: 100%; }
+    .img-grid.cols-3 .img-card .img-body {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px;
+      background: #fff;
+    }
+    .img-grid.cols-3 .img-card img {
+      width: auto;
+      height: auto;
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    /* Non-UMAP grids (cols-2): full-width image, no fixed height */
     .img-card img { width: 100%; display: block; }
     .download-link { color: #4a90d9; font-size: 0.7rem; text-decoration: none; }
     .download-link:hover { text-decoration: underline; }
@@ -348,7 +369,9 @@
               Cell type
               <a class="download-link" href="{{ sc.umap_celltype_path }}" download="{{ sc.anchor }}_umap_celltype.png">⬇ download</a>
             </div>
-            <img src="{{ sc.umap_celltype_path }}" alt="UMAP cell type" />
+            <div class="img-body">
+              <img src="{{ sc.umap_celltype_path }}" alt="UMAP cell type" />
+            </div>
           </div>
           {% endif %}
           {% if sc.umap_disease_path %}
@@ -357,7 +380,9 @@
               Disease condition
               <a class="download-link" href="{{ sc.umap_disease_path }}" download="{{ sc.anchor }}_umap_disease.png">⬇ download</a>
             </div>
-            <img src="{{ sc.umap_disease_path }}" alt="UMAP disease" />
+            <div class="img-body">
+              <img src="{{ sc.umap_disease_path }}" alt="UMAP disease" />
+            </div>
           </div>
           {% endif %}
           {% if sc.umap_highlight_path %}
@@ -366,7 +391,9 @@
               Subcluster highlight
               <a class="download-link" href="{{ sc.umap_highlight_path }}" download="{{ sc.anchor }}_umap_highlight.png">⬇ download</a>
             </div>
-            <img src="{{ sc.umap_highlight_path }}" alt="UMAP highlight" />
+            <div class="img-body">
+              <img src="{{ sc.umap_highlight_path }}" alt="UMAP highlight" />
+            </div>
           </div>
           {% endif %}
         </div>
